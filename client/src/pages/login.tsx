@@ -40,24 +40,26 @@ export default function Login() {
         body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
+      const payload = data?.success === false ? data : data?.data ?? data;
+      const errMsg =
+        data?.errors?.[0]?.message ||
+        data?.error ||
+        (typeof data?.errors?.[0] === "string" ? data.errors[0] : null);
 
       if (!res.ok) {
-        if (data.requiresEmailVerification) {
-          // User needs to verify email first
-          navigate(`/verify-email?userId=${data.userId}`);
+        if (data.requiresEmailVerification || payload?.requiresEmailVerification) {
+          navigate(`/verify-email?userId=${data.userId || payload?.userId}`);
           return;
         }
-        throw new Error(data.error || tr("Login falhou", "Login failed"));
+        throw new Error(errMsg || tr("Login falhou", "Login failed"));
       }
 
-      if (data.requires2FA) {
-        // Show 2FA form
+      if (payload?.requires2FA || data.requires2FA) {
         setRequires2FA(true);
-        setUserId(data.userId);
-        setMaskedEmail(data.email);
-      } else if (data.token) {
-        setToken(data.token);
-        // Force page reload to re-initialize auth state
+        setUserId(payload?.userId || data.userId);
+        setMaskedEmail(payload?.email || data.email);
+      } else if (payload?.token || payload?.accessToken || data.token) {
+        setToken(payload?.token || payload?.accessToken || data.token);
         window.location.href = "/dashboard";
       }
     } catch (err: any) {

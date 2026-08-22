@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ctrlx
+      POSTGRES_PASSWORD: ctrlx
+      POSTGRES_DB: ctrlx
+    ports:
+      - "5432:5432"
+    volumes:
+      - ctrlx_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ctrlx -d ctrlx"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      DATABASE_URL: postgresql://ctrlx:ctrlx@db:5432/ctrlx
+      JWT_SECRET: change-me-in-production-use-long-secret
+      ENCRYPTION_KEY: change-me-encryption-key-prod
+      CORS_ORIGIN: http://localhost:4173,http://localhost:5173,http://localhost:5000
+      AUTH_USERNAME: admin
+      AUTH_PASSWORD: changeme
+      AUTH_EMAIL: admin@localhost
+      VITE_ENABLE_WS: "false"
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      args:
+        VITE_API_BASE_URL: http://localhost:5000
+        VITE_API_CREDENTIALS: include
+    ports:
+      - "4173:80"
+    depends_on:
+      - api
+
+volumes:
+  ctrlx_pg:

@@ -1,0 +1,15 @@
+FROM node:20-bookworm-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+ARG VITE_API_BASE_URL=http://localhost:5000
+ARG VITE_API_CREDENTIALS=include
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_API_CREDENTIALS=$VITE_API_CREDENTIALS
+RUN npm run build:client
+
+FROM nginx:1.27-alpine
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist/public /usr/share/nginx/html
+EXPOSE 80

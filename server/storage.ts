@@ -15,10 +15,10 @@ import {
 import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { getDb } from "./db/client";
-import { companies, lights, locations, tvs, videos } from "./db/schema";
+import { legacyCompanies, lights, locations, tvs, videos } from "./db/schema";
 
 export interface IStorage {
-  // Companies
+  // legacyCompanies
   getAllCompanies(): Promise<Company[]>;
   getCompany(id: string): Promise<Company | undefined>;
   createCompany(company: InsertCompany): Promise<Company>;
@@ -55,38 +55,38 @@ export interface IStorage {
 }
 
 export class MemStorage implements IStorage {
-  private companies: Map<string, Company>;
+  private legacyCompanies: Map<string, Company>;
   private locations: Map<string, Location>;
   private lights: Map<string, Light>;
   private tvs: Map<string, Tv>;
   private videos: Map<string, Video>;
 
   constructor() {
-    this.companies = new Map();
+    this.legacyCompanies = new Map();
     this.locations = new Map();
     this.lights = new Map();
     this.tvs = new Map();
     this.videos = new Map();
   }
 
-  // Companies
+  // legacyCompanies
   async getAllCompanies(): Promise<Company[]> {
-    return Array.from(this.companies.values());
+    return Array.from(this.legacyCompanies.values());
   }
 
   async getCompany(id: string): Promise<Company | undefined> {
-    return this.companies.get(id);
+    return this.legacyCompanies.get(id);
   }
 
   async createCompany(insertCompany: InsertCompany): Promise<Company> {
     const id = randomUUID();
     const company: Company = { ...insertCompany, id };
-    this.companies.set(id, company);
+    this.legacyCompanies.set(id, company);
     return company;
   }
 
   async deleteCompany(id: string): Promise<boolean> {
-    return this.companies.delete(id);
+    return this.legacyCompanies.delete(id);
   }
 
   // Locations
@@ -213,23 +213,23 @@ export class MemStorage implements IStorage {
 export class PostgresStorage implements IStorage {
   private db = getDb();
 
-  // Companies
+  // legacyCompanies
   async getAllCompanies(): Promise<Company[]> {
-    return await this.db.select().from(companies);
+    return await this.db.select().from(legacyCompanies);
   }
 
   async getCompany(id: string): Promise<Company | undefined> {
-    const rows = await this.db.select().from(companies).where(eq(companies.id, id));
+    const rows = await this.db.select().from(legacyCompanies).where(eq(legacyCompanies.id, id));
     return rows[0];
   }
 
   async createCompany(company: InsertCompany): Promise<Company> {
-    const rows = await this.db.insert(companies).values(company).returning();
+    const rows = await this.db.insert(legacyCompanies).values(company).returning();
     return rows[0]!;
   }
 
   async deleteCompany(id: string): Promise<boolean> {
-    const rows = await this.db.delete(companies).where(eq(companies.id, id)).returning({ id: companies.id });
+    const rows = await this.db.delete(legacyCompanies).where(eq(legacyCompanies.id, id)).returning({ id: legacyCompanies.id });
     return rows.length > 0;
   }
 

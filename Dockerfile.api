@@ -1,0 +1,11 @@
+FROM node:20-bookworm-slim
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
+COPY docker/api-entrypoint.sh /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
+ENV NODE_ENV=production
+ENV SERVE_STATIC=false
+EXPOSE 5000
+ENTRYPOINT ["/entrypoint.sh"]

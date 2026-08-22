@@ -16,9 +16,10 @@ import {
 import { ZodError } from "zod";
 import crypto, { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { getDb } from "./db/client";
-import { users, organizations, userOrganizations, organizationInvites, verificationCodes, userStorePermissions, companies } from "./db/schema";
+import { users, organizations, userOrganizations, organizationInvites, verificationCodes, userStorePermissions, legacyCompanies } from "./db/schema";
 import { eq, and, gt } from "drizzle-orm";
 import { generateVerificationCode, sendVerificationCodeEmail } from "./email";
+import { getJwtSecret } from "./config/env";
 
 export type BroadcastDeviceUpdate = (
   type: "light_update" | "tv_update",
@@ -35,7 +36,7 @@ export async function registerRoutes(
   const broadcastDeviceUpdate = opts?.broadcastDeviceUpdate ?? noopBroadcast;
 
   // --- Auth helpers (JWT, simple credential check) ---
-  const jwtSecret = process.env.JWT_SECRET ?? "please-change-me";
+  const jwtSecret = getJwtSecret();
   const defaultAuthUsername = process.env.AUTH_USERNAME ?? "admin";
   const defaultAuthPassword = process.env.AUTH_PASSWORD ?? "changeme";
   const defaultAuthEmail = process.env.AUTH_EMAIL ?? "admin@localhost";
@@ -116,7 +117,8 @@ export async function registerRoutes(
       username: defaultAuthUsername, 
       email: defaultAuthEmail,
       passwordHash,
-      emailVerified: true // Default admin is pre-verified
+      emailVerified: true,
+      isSuperAdmin: true,
     });
   }
 
@@ -783,12 +785,12 @@ export async function registerRoutes(
           // Get store permissions for this user
           const permissions = await db.select({
             companyId: userStorePermissions.companyId,
-            companyName: companies.name,
+            companyName: legacyCompanies.name,
             canView: userStorePermissions.canView,
             canEdit: userStorePermissions.canEdit,
           })
             .from(userStorePermissions)
-            .innerJoin(companies, eq(userStorePermissions.companyId, companies.id))
+            .innerJoin(legacyCompanies, eq(userStorePermissions.companyId, legacyCompanies.id))
             .where(eq(userStorePermissions.userId, m.userId));
           
           return { 
@@ -1077,12 +1079,12 @@ export async function registerRoutes(
       const permissions = await db.select({
         id: userStorePermissions.id,
         companyId: userStorePermissions.companyId,
-        companyName: companies.name,
+        companyName: legacyCompanies.name,
         canView: userStorePermissions.canView,
         canEdit: userStorePermissions.canEdit,
       })
         .from(userStorePermissions)
-        .innerJoin(companies, eq(userStorePermissions.companyId, companies.id))
+        .innerJoin(legacyCompanies, eq(userStorePermissions.companyId, legacyCompanies.id))
         .where(eq(userStorePermissions.userId, req.params.userId));
       
       res.json(permissions);
@@ -1109,8 +1111,8 @@ export async function registerRoutes(
       const { permissions = [] } = req.body || {};
       
       // Get all stores for this organization
-      const orgStores = await db.select().from(companies)
-        .where(eq(companies.organizationId, req.params.id));
+      const orgStores = await db.select().from(legacyCompanies)
+        .where(eq(legacyCompanies.organizationId, req.params.id));
       const orgStoreIds = new Set(orgStores.map(s => s.id));
       
       // Delete existing permissions for stores in this org
@@ -3288,7 +3290,8 @@ app-drawer-layout {
   });
 
   // Companies
-  app.get("/api/companies", async (_req, res) => {
+  // Legacy company CRUD moved under /api/legacy (Phase 1 uses /api/companies for tenants)
+  app.get("/api/legacy/companies", async (_req, res) => {
     try {
       const companies = await storage.getAllCompanies();
       res.json(companies);
@@ -3297,7 +3300,7 @@ app-drawer-layout {
     }
   });
 
-  app.get("/api/companies/:id", async (req, res) => {
+  app.get("/api/legacy/companies/:id", async (req, res) => {
     try {
       const company = await storage.getCompany(req.params.id);
       if (!company) {
@@ -3309,7 +3312,7 @@ app-drawer-layout {
     }
   });
 
-  app.post("/api/companies", async (req, res) => {
+  app.post("/api/legacy/companies", async (req, res) => {
     try {
       const data = insertCompanySchema.parse(req.body);
       const company = await storage.createCompany(data);
@@ -3322,7 +3325,7 @@ app-drawer-layout {
     }
   });
 
-  app.delete("/api/companies/:id", async (req, res) => {
+  app.delete("/api/legacy/companies/:id", async (req, res) => {
     try {
       const success = await storage.deleteCompany(req.params.id);
       if (!success) {

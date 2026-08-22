@@ -1,15 +1,29 @@
 import { QueryClient } from "@tanstack/react-query";
 import { getToken, clearToken } from "./auth";
 
+function redirectToLoginIfUnauthorized(res: Response, bodyText: string) {
+  if (res.status !== 401) return;
+  // CtrlX session JWT — not the Home Assistant long-lived token
+  const looksLikeSession =
+    bodyText.includes("Invalid or expired token") ||
+    bodyText.includes('"UNAUTHORIZED"') ||
+    bodyText.includes("Unauthorized");
+  if (!looksLikeSession) return;
+  clearToken();
+  if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+    window.location.assign("/login");
+  }
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
+    redirectToLoginIfUnauthorized(res, text);
     throw new Error(`${res.status}: ${text}`);
   }
 }
 
 function getApiBaseUrl() {
-  // Example: https://your-backend.netlify.app
   const base = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
   return base.replace(/\/+$/, "");
 }
@@ -27,9 +41,23 @@ function authHeaders(): Record<string, string> {
 }
 
 function getCredentials(): RequestCredentials {
-  // For separate domains, cookies are usually not needed. Default to omit.
-  const mode = (import.meta.env.VITE_API_CREDENTIALS as string | undefined) ?? "omit";
-  return mode === "include" ? "include" : "omit";
+  const mode = (import.meta.env.VITE_API_CREDENTIALS as string | undefined) ?? "include";
+  return mode === "omit" ? "omit" : "include";
+}
+
+/** Unwrap Phase 1 `{ success, data }` envelopes; pass through legacy JSON. */
+export function unwrapApiData<T = unknown>(json: any): T {
+  if (json && typeof json === "object" && "success" in json && "data" in json) {
+    if (json.success === false) {
+      const msg =
+        json.errors?.[0]?.message ||
+        (typeof json.errors?.[0] === "string" ? json.errors[0] : null) ||
+        "Request failed";
+      throw new Error(msg);
+    }
+    return json.data as T;
+  }
+  return json as T;
 }
 
 export async function apiRequest(
@@ -53,6 +81,12 @@ export async function apiRequest(
   return res;
 }
 
+export async function apiJson<T>(method: string, url: string, data?: unknown): Promise<T> {
+  const res = await apiRequest(method, url, data);
+  const json = await res.json();
+  return unwrapApiData<T>(json);
+}
+
 type UnauthorizedBehavior = "returnNull" | "throw";
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
@@ -71,7 +105,8 @@ export const getQueryFn: <T>(options: {
     }
 
     await throwIfResNotOk(res);
-    return await res.json();
+    const json = await res.json();
+    return unwrapApiData<T>(json);
   };
 
 export const queryClient = new QueryClient({
