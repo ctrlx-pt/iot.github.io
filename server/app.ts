@@ -1,5 +1,8 @@
 import express, { type Request, Response, NextFunction } from "express";
+import cookieParser from "cookie-parser";
 import { registerRoutes, type BroadcastDeviceUpdate } from "./routes";
+import { registerPhase1Routes } from "./register-phase1";
+import { correlationIdMiddleware, errorHandler } from "./middleware/errors";
 import { log } from "./logger";
 
 declare module "http" {
@@ -20,26 +23,28 @@ export async function createApp(opts?: { broadcastDeviceUpdate?: BroadcastDevice
   app.use((req, res, next) => {
     const origin = req.headers.origin;
     const allowAll = allowedOrigins.length === 0;
-    const originAllowed = origin && (allowAll || allowedOrigins.includes(origin));
+    const originAllowed = !origin || allowAll || allowedOrigins.includes(origin);
 
-    // Always set CORS headers for allowed origins
-    if (originAllowed) {
+    if (origin && (allowAll || allowedOrigins.includes(origin))) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Vary", "Origin");
       res.setHeader("Access-Control-Allow-Credentials", "true");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+      res.setHeader(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization, X-Correlation-Id",
+      );
       res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,DELETE,OPTIONS");
     }
 
-    // Always respond to OPTIONS (preflight) - even if origin not allowed, to avoid hanging
     if (req.method === "OPTIONS") {
-      // If origin not allowed, still respond but without CORS headers (browser will block)
       return res.status(originAllowed ? 204 : 403).end();
     }
 
     next();
   });
 
+  app.use(correlationIdMiddleware);
+  app.use(cookieParser());
   app.use(
     express.json({
       verify: (req, _res, buf) => {
@@ -48,6 +53,14 @@ export async function createApp(opts?: { broadcastDeviceUpdate?: BroadcastDevice
     }),
   );
   app.use(express.urlencoded({ extended: false }));
+
+  // Security headers
+  app.use((_req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    next();
+  });
 
   app.use((req, res, next) => {
     const start = Date.now();
@@ -79,15 +92,12 @@ export async function createApp(opts?: { broadcastDeviceUpdate?: BroadcastDevice
     next();
   });
 
+  // Phase 1 SaaS routes first (auth, companies, stores, dashboard)
+  registerPhase1Routes(app);
+
   await registerRoutes(app, { broadcastDeviceUpdate: opts?.broadcastDeviceUpdate });
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
-  });
+  app.use(errorHandler);
 
   return app;
 }

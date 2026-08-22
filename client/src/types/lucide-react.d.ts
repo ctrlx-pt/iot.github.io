@@ -4,8 +4,8 @@ declare module "lucide-react" {
    * are unavailable in this environment.
    */
   export type Icon = (props: Record<string, any>) => any;
+  export type LucideIcon = Icon;
 
-  // Icons used in the app
   export const Video: Icon;
   export const Building2: Icon;
   export const Lightbulb: Icon;
@@ -15,10 +15,13 @@ declare module "lucide-react" {
   export const Users: Icon;
   export const ChevronDown: Icon;
   export const ChevronUp: Icon;
+  export const ChevronLeft: Icon;
+  export const ChevronRight: Icon;
   export const Copy: Icon;
   export const Check: Icon;
   export const PanelLeftIcon: Icon;
   export const Power: Icon;
+  export const PowerOff: Icon;
   export const Volume2: Icon;
   export const VolumeX: Icon;
   export const Play: Icon;
@@ -34,10 +37,10 @@ declare module "lucide-react" {
   export const UserPlus: Icon;
   export const UserMinus: Icon;
   export const MoreVertical: Icon;
+  export const MoreHorizontal: Icon;
   export const Trash2: Icon;
   export const LogOut: Icon;
   export const User: Icon;
-  export const ChevronUp: Icon;
   export const Camera: Icon;
   export const Lock: Icon;
   export const Eye: Icon;
@@ -47,11 +50,35 @@ declare module "lucide-react" {
   export const Cpu: Icon;
   export const Globe: Icon;
   export const Clock: Icon;
-  export const ChevronRight: Icon;
   export const MonitorSmartphone: Icon;
   export const RotateCcw: Icon;
   export const Smartphone: Icon;
   export const Sun: Icon;
   export const Moon: Icon;
+  export const Store: Icon;
+  export const MapPin: Icon;
+  export const Search: Icon;
+  export const Menu: Icon;
+  export const Languages: Icon;
+  export const Router: Icon;
+  export const Sofa: Icon;
+  export const Boxes: Icon;
+  export const Activity: Icon;
+  export const History: Icon;
+  export const Workflow: Icon;
+  export const FileText: Icon;
+  export const Wrench: Icon;
+  export const Tag: Icon;
+  export const Sliders: Icon;
+  export const Film: Icon;
+  export const Upload: Icon;
+  export const RefreshCw: Icon;
+  export const Fan: Icon;
+  export const Gauge: Icon;
+  export const Thermometer: Icon;
+  export const ToggleLeft: Icon;
+  export const Blinds: Icon;
+  export const Radio: Icon;
+  export const ArrowLeft: Icon;
+  export const ArrowRight: Icon;
 }
-

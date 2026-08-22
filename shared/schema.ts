@@ -1,5 +1,70 @@
 import { z } from "zod";
 
+export const platformRoles = [
+  "SuperAdmin",
+  "CompanyAdmin",
+  "StoreManager",
+  "Operator",
+  "Viewer",
+] as const;
+export type PlatformRole = (typeof platformRoles)[number];
+
+// ---------------------------------------------------------------------------
+// Phase 1 — Tenant Company + Store
+// ---------------------------------------------------------------------------
+
+export const insertTenantCompanySchema = z.object({
+  code: z.string().regex(/^\d{2}$/, "Company code must be 2 digits"),
+  name: z.string().min(1, "Company name is required"),
+  description: z.string().optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const tenantCompanySchema = insertTenantCompanySchema.extend({
+  id: z.string().uuid(),
+  isActive: z.boolean(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
+
+export type InsertTenantCompany = z.infer<typeof insertTenantCompanySchema>;
+export type TenantCompany = z.infer<typeof tenantCompanySchema>;
+
+export const insertStoreSchema = z.object({
+  companyId: z.string().uuid(),
+  name: z.string().min(1, "Store name is required"),
+  description: z.string().optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  country: z.string().optional(),
+  timezone: z.string().optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const storeSchema = z.object({
+  id: z.string().uuid(),
+  storeCode: z.string(),
+  companyId: z.string().uuid(),
+  name: z.string(),
+  description: z.string().nullable().optional(),
+  address: z.string().nullable().optional(),
+  city: z.string().nullable().optional(),
+  country: z.string().nullable().optional(),
+  timezone: z.string(),
+  isActive: z.boolean(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
+
+export type InsertStore = z.infer<typeof insertStoreSchema>;
+export type Store = z.infer<typeof storeSchema>;
+
+export const apiEnvelopeSchema = z.object({
+  success: z.boolean(),
+  data: z.unknown(),
+  errors: z.array(z.unknown()),
+});
+
 // Organization schemas
 export const insertOrganizationSchema = z.object({
   name: z.string().min(1, "Organization name is required"),
@@ -14,7 +79,6 @@ export const organizationSchema = insertOrganizationSchema.extend({
 export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
 export type Organization = z.infer<typeof organizationSchema>;
 
-// User-Organization membership
 export const userOrganizationSchema = z.object({
   id: z.string(),
   userId: z.string(),
@@ -25,7 +89,6 @@ export const userOrganizationSchema = z.object({
 
 export type UserOrganization = z.infer<typeof userOrganizationSchema>;
 
-// Organization invite
 export const createInviteSchema = z.object({
   organizationId: z.string(),
   role: z.enum(["admin", "member"]).default("member"),
@@ -47,7 +110,6 @@ export const organizationInviteSchema = z.object({
 export type CreateInvite = z.infer<typeof createInviteSchema>;
 export type OrganizationInvite = z.infer<typeof organizationInviteSchema>;
 
-// User store permissions (controls which stores a user can access)
 export const userStorePermissionSchema = z.object({
   id: z.string(),
   userId: z.string(),
@@ -67,22 +129,25 @@ export const insertUserStorePermissionSchema = z.object({
 export type UserStorePermission = z.infer<typeof userStorePermissionSchema>;
 export type InsertUserStorePermission = z.infer<typeof insertUserStorePermissionSchema>;
 
-// Create user schema (for admin creating users)
 export const createUserSchema = z.object({
   username: z.string().min(3, "Nome de utilizador deve ter pelo menos 3 caracteres"),
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   password: z.string().min(6, "Password deve ter pelo menos 6 caracteres"),
   role: z.enum(["admin", "member"]).default("member"),
-  storePermissions: z.array(z.object({
-    companyId: z.string(),
-    canView: z.boolean(),
-    canEdit: z.boolean(),
-  })).optional(),
+  storePermissions: z
+    .array(
+      z.object({
+        companyId: z.string(),
+        canView: z.boolean(),
+        canEdit: z.boolean(),
+      }),
+    )
+    .optional(),
 });
 
 export type CreateUser = z.infer<typeof createUserSchema>;
 
-// Company schemas
+/** @deprecated Legacy org-scoped company. Prefer TenantCompany + Store. */
 export const insertCompanySchema = z.object({
   organizationId: z.string().min(1, "Organization ID is required"),
   name: z.string().min(1, "Company name is required"),
@@ -96,7 +161,6 @@ export const companySchema = insertCompanySchema.extend({
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
 export type Company = z.infer<typeof companySchema>;
 
-// Location schemas
 export const insertLocationSchema = z.object({
   companyId: z.string().min(1, "Company ID is required"),
   name: z.string().min(1, "Location name is required"),
@@ -110,7 +174,6 @@ export const locationSchema = insertLocationSchema.extend({
 export type InsertLocation = z.infer<typeof insertLocationSchema>;
 export type Location = z.infer<typeof locationSchema>;
 
-// Light schemas
 export const insertLightSchema = z.object({
   locationId: z.string().min(1, "Location ID is required"),
   name: z.string().min(1, "Light name is required"),
@@ -136,7 +199,6 @@ export type InsertLight = z.infer<typeof insertLightSchema>;
 export type Light = z.infer<typeof lightSchema>;
 export type UpdateLight = z.infer<typeof updateLightSchema>;
 
-// Video schemas
 export const insertVideoSchema = z.object({
   name: z.string().min(1, "Video name is required"),
   url: z.string().url("Invalid video URL"),
@@ -151,7 +213,6 @@ export const videoSchema = insertVideoSchema.extend({
 export type InsertVideo = z.infer<typeof insertVideoSchema>;
 export type Video = z.infer<typeof videoSchema>;
 
-// TV schemas
 export const insertTvSchema = z.object({
   locationId: z.string().min(1, "Location ID is required"),
   name: z.string().min(1, "TV name is required"),
@@ -175,18 +236,17 @@ export type InsertTv = z.infer<typeof insertTvSchema>;
 export type Tv = z.infer<typeof tvSchema>;
 export type UpdateTv = z.infer<typeof updateTvSchema>;
 
-// WebSocket message schemas
 export const deviceUpdateMessageSchema = z.object({
-  type: z.enum(['light_update', 'tv_update']),
+  type: z.enum(["light_update", "tv_update"]),
   deviceId: z.string(),
   data: z.union([lightSchema, tvSchema, updateLightSchema, updateTvSchema]),
 });
 
 export const deviceStatusMessageSchema = z.object({
-  type: z.literal('status_update'),
+  type: z.literal("status_update"),
   deviceId: z.string(),
-  deviceType: z.enum(['light', 'tv']),
-  status: z.enum(['online', 'offline']),
+  deviceType: z.enum(["light", "tv"]),
+  status: z.enum(["online", "offline"]),
 });
 
 export type DeviceUpdateMessage = z.infer<typeof deviceUpdateMessageSchema>;

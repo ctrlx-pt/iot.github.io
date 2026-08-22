@@ -24,6 +24,7 @@ declare module "react" {
   export function forwardRef<T, P = {}>(
     render: (props: P, ref: Ref<T>) => ReactNode
   ): any;
+  export const Fragment: any;
   
   const React: {
     useState: typeof useState;
@@ -34,6 +35,7 @@ declare module "react" {
     useRef: typeof useRef;
     createContext: typeof createContext;
     forwardRef: typeof forwardRef;
+    Fragment: any;
   };
   export default React;
   export = React;

@@ -1,71 +1,85 @@
-## ctrlx (exportable Replit project)
+# CtrlX — Smart Retail Control Platform
 
-This repo contains:
-- **Frontend**: React + Vite (`client/`)
-- **Backend API**: Express (`server/`)
-- **DB**: Postgres (Neon) via Drizzle, enabled when `DATABASE_URL` is set
+Multi-tenant SaaS for managing smart retail environments:
 
+```text
+Company → Store → Furniture → Kit → Device → Gateway → Home Assistant
+```
 
-### Run locally
+## Stack
 
-You need **Node.js 20+** (so you have `npm` available).
+- Backend: Node.js, Express, Drizzle, PostgreSQL
+- Frontend: React, Vite, shadcn/ui, TanStack Query, wouter
+- Realtime: WebSocket (`/ws`)
+- Control: Home Assistant REST (replaceable via `IDeviceControlService`)
 
-Install:
+## Quick start
 
-- `npm install`
+```bash
+docker compose up --build
+```
 
-Start dev (Vite + Node server):
+- Web: http://localhost:4173  
+- API: http://localhost:5000  
 
-- `npm run dev`
+| User | Password | Role | Scope |
+|------|----------|------|-------|
+| `admin` | `changeme` | SuperAdmin | All companies — create hierarchy |
+| `puig` | `changeme` | Operator | PUIG only — view & control |
+| `lvmh` | `changeme` | Operator | LVMH only — view & control |
 
-### Database (Neon)
+Only **SuperAdmin** can create/edit companies, stores, furniture, kits, gateways, HA and automations. Client users see their tenant and can control devices / run automations / sync HA.
 
-1. Create a Neon Postgres database.
-2. Copy the **connection string** (this is *not* the Neon console login URL).
-3. Set `DATABASE_URL` in your environment (see `env.example`).
-4. Push schema:
+Seed includes PUIG/LVMH companies, stores, furniture, kits, LED/TV devices and gateways.
 
-- `npm run db:push`
+## Local dev
 
-If `DATABASE_URL` is not set, the app will fall back to in-memory storage.
+```bash
+cp .env.example .env
+docker compose up db -d
+npm install
+npm run db:push
+npm run seed
+npm run dev
+```
 
-### Deploy backend to Netlify (API only)
+## Main API
 
-This repo includes:
-- `netlify.toml` (backend-only: functions + `/api/*` redirect)
-- `netlify/functions/api.ts` (wraps the Express API as a Netlify Function)
+```text
+/api/auth/*
+/api/companies /api/stores
+/api/furniture /api/kits /api/devices
+/api/gateways
+/api/home-assistant (+ /entities, /:id/ping)
+/api/devices/:id/control
+/api/automations (+ /:id/run)
+/api/monitoring
+/api/audit-logs
+/api/dashboard/summary
+```
 
-Netlify settings:
-- **Build command**: (already set in `netlify.toml`)
-- **Publish directory**: `public`
-- **Functions directory**: `netlify/functions`
+Device control commands: `on`, `off`, `toggle`, `set_brightness`, `set_color`, `set_temperature`, `set_volume`, `set_input`.
 
-Required environment variables on Netlify:
-- `DATABASE_URL` (Neon connection string)
-- `CORS_ORIGIN` (your frontend URL, e.g. `https://your-frontend.com`)
+HA API tokens are encrypted at rest (`ENCRYPTION_KEY`) and never returned to the frontend.
 
-Notes:
-- WebSockets are **disabled by default in production** because Netlify Functions do not support long-lived WS connections.
+## How to connect Home Assistant
 
-### Frontend hosted elsewhere
+1. Create a store.
+2. **Operações → Home Assistant** → add URL + long-lived token for that store.
+3. On save, CtrlX calls the HA API (`/api/states`), discovers controllable entities (lights, switches, media players, etc.), and creates devices under furniture **Home Assistant** → kit **Dispositivos descobertos**.
+4. Use **Sincronizar** anytime to refresh inventory (also creates/updates the store gateway).
+5. Control from the device page or `POST /api/devices/:id/control`.
 
-Set this environment variable in your frontend build:
-- `VITE_API_BASE_URL=https://<your-netlify-backend>.netlify.app`
+Manual `POST /api/devices` is disabled — inventory comes only from HA discovery.
 
-Then the frontend will call:
-- `https://<your-netlify-backend>.netlify.app/api/...`
+## Automations
 
-### Frontend on GitHub Pages
+Time-based and manual triggers. Scheduler ticks every 30s. Scope: Company / Store / Furniture / Kit / Device.
 
-This repo includes `.github/workflows/deploy-pages.yml` which builds the Vite app and deploys `dist/public` to GitHub Pages.
+## Tests
 
-1. In GitHub: **Settings → Pages** → set **Source** to **GitHub Actions**
-2. In GitHub: **Settings → Secrets and variables → Actions → Variables**
-   - Add `VITE_API_BASE_URL` = `https://<your-netlify-backend>.netlify.app`
-3. Push to `main` and the workflow will deploy.
-
-Notes:
-- GitHub Pages serves under `/<repo>/`, so the build uses `VITE_BASE="/<repo>/"`.
-- GitHub Pages has no SPA rewrites, so the build uses hash routing (`VITE_ROUTER_MODE=hash`), meaning URLs look like `.../#/companies`.
-
-
+```bash
+npm test
+# integration:
+# RUN_INTEGRATION_TESTS=1 DATABASE_URL=... npm test
+```

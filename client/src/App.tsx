@@ -1,4 +1,4 @@
-import { Switch, Route, Link, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -14,6 +14,7 @@ import { useTranslation } from "@/lib/i18n";
 import { useWebSocket } from "@/hooks/use-websocket";
 import Dashboard from "@/pages/dashboard";
 import Companies from "@/pages/companies";
+import CompanyDetail from "@/pages/company-detail";
 import LocationDetail from "@/pages/location-detail";
 import StoreDetail from "@/pages/store-detail";
 import Videos from "@/pages/videos";
@@ -41,21 +42,33 @@ import MediaDashboard from "@/pages/media-dashboard";
 import MediaContent from "@/pages/media-content";
 import MediaPlaylists from "@/pages/media-playlists";
 import AccessGroups from "@/pages/access-groups";
-import { Video } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import FurnitureDetail from "@/pages/furniture-detail";
+import KitDetail from "@/pages/kit-detail";
+import DeviceDetail from "@/pages/device-detail";
+import Gateways from "@/pages/gateways";
+import GatewayDetail from "@/pages/gateway-detail";
+import Automations from "@/pages/automations";
+import Monitoring from "@/pages/monitoring";
 import { useMemo, useState, useEffect, type CSSProperties } from "react";
 import { getToken, clearToken, apiUrl } from "@/lib/auth";
+import { unwrapApiData } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 
 function AuthenticatedRoutes() {
-  // Initialize WebSocket connection
   useWebSocket();
 
   return (
     <Switch>
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/companies/:companyId" component={CompanyDetail} />
       <Route path="/companies" component={Companies} />
+      <Route path="/stores/:storeId" component={StoreDetail} />
       <Route path="/stores" component={Stores} />
+      <Route path="/furniture/:furnitureId" component={FurnitureDetail} />
+      <Route path="/kits/:kitId" component={KitDetail} />
+      <Route path="/devices/:deviceId" component={DeviceDetail} />
+      <Route path="/gateways/:gatewayId" component={GatewayDetail} />
+      <Route path="/gateways" component={Gateways} />
       <Route path="/members" component={Members} />
       <Route path="/search" component={Search} />
       <Route path="/energy" component={Energy} />
@@ -64,24 +77,23 @@ function AuthenticatedRoutes() {
       <Route path="/store/:id" component={StoreDetail} />
       <Route path="/videos" component={Videos} />
       <Route path="/ha" component={HomeAssistant} />
+      <Route path="/home-assistant" component={HomeAssistant} />
       <Route path="/organizations" component={Organizations} />
+      <Route path="/users" component={Members} />
       <Route path="/profile" component={Profile} />
       <Route path="/settings" component={Profile} />
-      {/* Administration */}
       <Route path="/administration" component={Administration} />
       <Route path="/requests" component={Requests} />
       <Route path="/brands" component={Brands} />
       <Route path="/brand/:id" component={BrandDetail} />
-      {/* Local Management */}
       <Route path="/local-control" component={LocalControl} />
       <Route path="/schedules" component={Schedules} />
-      {/* Media */}
+      <Route path="/automations" component={Automations} />
+      <Route path="/monitoring" component={Monitoring} />
       <Route path="/media" component={MediaDashboard} />
       <Route path="/media/content" component={MediaContent} />
       <Route path="/media/playlists" component={MediaPlaylists} />
-      {/* Access Groups */}
       <Route path="/access-groups" component={AccessGroups} />
-      {/* Redirect root to dashboard */}
       <Route path="/">
         {() => {
           window.location.replace("/dashboard");
@@ -136,16 +148,18 @@ function AppContent() {
       if (!currentToken) return null;
       const res = await fetch(apiUrl("/api/auth/me"), {
         headers: { Authorization: `Bearer ${currentToken}` },
+        credentials: "include",
       });
       if (!res.ok) {
         clearToken();
         return null;
       }
-      return res.json();
+      const json = await res.json();
+      return unwrapApiData<{ user: unknown }>(json);
     },
     enabled: !!token,
     retry: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 
   // Clear token if validation failed
@@ -192,12 +206,6 @@ function AppContent() {
               <SidebarTrigger data-testid="button-sidebar-toggle" />
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/videos" data-testid="link-videos-header">
-                  <Video className="w-4 h-4 mr-2" />
-                  {tr("Vídeos", "Videos")}
-                </Link>
-              </Button>
               <LanguageSwitcher />
               <ThemeToggle />
             </div>

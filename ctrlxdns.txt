@@ -1,0 +1,70 @@
+;;
+;; Domain:     ctrlx.pt.
+;; Corrected for: Cloudflare + GitHub Pages
+;; Date:       2025-12-22
+;;
+
+;; =========================
+;; SOA Record
+;; =========================
+ctrlx.pt. 3600 IN SOA naomi.ns.cloudflare.com. dns.cloudflare.com. (
+  2051808401 ; serial
+  10000      ; refresh
+  2400       ; retry
+  604800     ; expire
+  3600       ; minimum
+)
+
+;; =========================
+;; NS Records (ONLY Cloudflare)
+;; =========================
+ctrlx.pt. 86400 IN NS naomi.ns.cloudflare.com.
+ctrlx.pt. 86400 IN NS robert.ns.cloudflare.com.
+
+;; =========================
+;; A Records – GitHub Pages (root domain)
+;; DNS ONLY (no proxy)
+;; =========================
+ctrlx.pt. 300 IN A 185.199.108.153
+ctrlx.pt. 300 IN A 185.199.109.153
+ctrlx.pt. 300 IN A 185.199.110.153
+ctrlx.pt. 300 IN A 185.199.111.153
+
+;; =========================
+;; CNAME – www → GitHub Pages
+;; DNS ONLY (no proxy)
+;; =========================
+www.ctrlx.pt. 300 IN CNAME ctrlx5664-prog.github.io.
+
+;; =========================
+;; MX – Microsoft 365
+;; =========================
+ctrlx.pt. 300 IN MX 0 ctrlx-pt.mail.protection.outlook.com.
+
+;; =========================
+;; TXT – SPF
+;; =========================
+ctrlx.pt. 300 IN TXT "v=spf1 include:spf.protection.outlook.com -all"
+
+;; =========================
+;; TXT – DMARC
+;; =========================
+_dmarc.ctrlx.pt. 300 IN TXT "v=DMARC1; p=none; rua=mailto:postmaster@ctrlx.pt"
+
+;; =========================
+;; TXT – GitHub Pages verification
+;; =========================
+_github-pages-challenge-ctrlx5664-prog.ctrlx.pt. 300 IN TXT "ac7ef653e25ecc1e08baed1ebcc879"
+
+;; =========================
+;; CNAME – Autodiscover (Microsoft)
+;; =========================
+autodiscover.ctrlx.pt. 300 IN CNAME autodiscover.outlook.com.
+
+;; =========================
+;; CAA – SSL (opcional, mantido)
+;; =========================
+ctrlx.pt. 300 IN CAA 0 issue "letsencrypt.org"
+ctrlx.pt. 300 IN CAA 0 issue "digicert.com"
+ctrlx.pt. 300 IN CAA 0 issue "globalsign.com"
+ctrlx.pt. 300 IN CAA 0 issue "sectigo.com"

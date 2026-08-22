@@ -1,0 +1,16 @@
+node_modules
+dist
+.git
+.github
+*.md
+.env
+.env.*
+!.env.example
+coverage
+.vite
+.turbo
+*.log
+.DS_Store
+agent-transcripts
+.cursor
+ctrlxdns.txt

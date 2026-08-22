@@ -1,258 +1,229 @@
-import { useState, useEffect, useRef } from "react";
-import { apiUrl } from "@/lib/auth";
-import { Loader2, RotateCcw, Smartphone } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Link } from "wouter";
+import { Plus, RefreshCw } from "lucide-react";
+import { Breadcrumbs } from "@/components/breadcrumbs";
+import { StatusBadge } from "@/components/status-badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { apiJson, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import { useTranslation } from "@/lib/i18n";
 
-export default function HomeAssistant() {
-  const { language } = useTranslation() as { language: "pt" | "en" };
+export default function HomeAssistantPage() {
+  const { language } = useTranslation();
   const tr = (pt: string, en: string) => (language === "pt" ? pt : en);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadingMessage, setLoadingMessage] = useState(tr("A inicializar...", "Initializing..."));
-  const [isMobilePortrait, setIsMobilePortrait] = useState(false);
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const { toast } = useToast();
+  const { canManageHierarchy } = useCurrentUser();
+  const [storeId, setStoreId] = useState("");
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [apiToken, setApiToken] = useState("");
 
-  // Default to "dashboard-conex" based on your setup, or "lovelace" for default
-  const [dashboard] = useState<string>("dashboard-conex");
-  const [view] = useState<string>("aa");
+  const { data: stores = [] } = useQuery<any[]>({ queryKey: ["/api/stores"] });
+  const effectiveStore = storeId || stores[0]?.id;
 
-  // Detect mobile portrait mode
-  useEffect(() => {
-    const checkOrientation = () => {
-      const isMobile = window.innerWidth < 768 || 
-        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const isPortrait = window.innerHeight > window.innerWidth;
-      setIsMobilePortrait(isMobile && isPortrait);
-    };
+  const { data: instances = [] } = useQuery<any[]>({
+    queryKey: ["/api/home-assistant", effectiveStore],
+    queryFn: () => apiJson("GET", `/api/home-assistant?storeId=${effectiveStore}`),
+    enabled: !!effectiveStore,
+  });
 
-    checkOrientation();
-    window.addEventListener("resize", checkOrientation);
-    window.addEventListener("orientationchange", checkOrientation);
-    
-    return () => {
-      window.removeEventListener("resize", checkOrientation);
-      window.removeEventListener("orientationchange", checkOrientation);
-    };
-  }, []);
-
-  // Host-side cropping (robust): hide HA chrome even if it's inside shadow DOM.
-  // Adjust if your HA theme/layout changes.
-  const HA_LEFT_CHROME_PX = 285; // sidebar width (smaller = shift dashboard right)
-  const HA_TOP_CHROME_PX = 56; // header/top bar height
-
-  // Build the dashboard URL with dashboard and view parameters
-  // This goes through our proxy which injects authentication
-  const params = new URLSearchParams();
-  if (dashboard) params.set("dashboard", dashboard);
-  if (view) params.set("view", view);
-
-  const dashboardUrl = `${apiUrl("/api/ha/dashboard")}?${params.toString()}`;
-
-  // Loading messages rotation to show progress
-  useEffect(() => {
-    if (!isLoading) return;
-
-    const messages = [
-      tr("A inicializar...", "Initializing..."),
-      tr("A conectar ao sistema...", "Connecting to the system..."),
-      tr("A carregar dashboard...", "Loading dashboard..."),
-      tr("A preparar interface...", "Preparing interface..."),
-      tr("Quase pronto...", "Almost ready..."),
-    ];
-
-    let index = 0;
-    const interval = setInterval(() => {
-      index = (index + 1) % messages.length;
-      setLoadingMessage(messages[index]);
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, [isLoading]);
-
-  // Handle iframe load - wait a bit extra for HA to fully render
-  const handleIframeLoad = () => {
-    setError(null);
-    setLoadingMessage(tr("A finalizar...", "Finalizing..."));
-
-    // Give HA some extra time to fully render (hide the HA logo loading)
-    // The iframe load event fires when the HTML is loaded, but HA still
-    // has internal JS loading that shows the logo
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 3000); // 3 seconds should be enough for most cases
+  const invalidateHierarchy = () => {
+    queryClient.invalidateQueries({ queryKey: ["/api/home-assistant"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/devices"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/kits"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/furniture"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/gateways"] });
   };
 
+  const create = useMutation({
+    mutationFn: () =>
+      apiJson("POST", "/api/home-assistant", {
+        storeId: effectiveStore,
+        name,
+        url,
+        apiToken,
+      }),
+    onSuccess: (data: any) => {
+      invalidateHierarchy();
+      setOpen(false);
+      setApiToken("");
+      setName("");
+      setUrl("");
+      const d = data?.discovery;
+      if (d?.error) {
+        toast({
+          title: tr("Instância guardada, mas a descoberta falhou", "Instance saved, but discovery failed"),
+          description: d.error,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: tr("Home Assistant ligado", "Home Assistant connected"),
+          description: tr(
+            `${d?.created ?? 0} novos · ${d?.updated ?? 0} atualizados · ${d?.discovered ?? 0} detetados`,
+            `${d?.created ?? 0} created · ${d?.updated ?? 0} updated · ${d?.discovered ?? 0} discovered`,
+          ),
+        });
+      }
+    },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  const sync = useMutation({
+    mutationFn: (id: string) => apiJson("POST", `/api/home-assistant/${id}/discover`),
+    onSuccess: (data: any) => {
+      invalidateHierarchy();
+      toast({
+        title: tr("Dispositivos sincronizados", "Devices synced"),
+        description: tr(
+          `${data.created ?? 0} novos · ${data.updated ?? 0} atualizados · ${data.discovered ?? 0} detetados`,
+          `${data.created ?? 0} created · ${data.updated ?? 0} updated · ${data.discovered ?? 0} discovered`,
+        ),
+      });
+    },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
-      <div className="p-6 pb-4 border-b">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold">{tr("Dashboard de Controlo", "Control Dashboard")}</h1>
-            <p className="text-sm text-muted-foreground">
-              {tr("Monitorização e controlo em tempo real", "Real-time monitoring and control")}
-            </p>
-          </div>
+    <div className="space-y-6">
+      <div className="flex items-start justify-between">
+        <div>
+          <Breadcrumbs items={[{ label: "Home Assistant" }]} />
+          <h1 className="text-2xl font-semibold">Home Assistant</h1>
+          <p className="text-sm text-muted-foreground max-w-2xl">
+            {tr(
+              "Adicione URL e token da loja. O CtrlX deteta automaticamente lights, switches, TVs e outros controláveis via API — sem adicionar dispositivos à mão.",
+              "Add the store URL and token. CtrlX automatically discovers lights, switches, TVs and other controllable entities via the API — no manual device entry.",
+            )}
+          </p>
         </div>
-      </div>
-
-      {error && (
-        <div className="m-6 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded">
-          {error}
-        </div>
-      )}
-
-      <div className="flex-1 relative overflow-y-auto overflow-x-hidden bg-background min-h-[1200px]">
-        {/* Mobile Portrait Warning */}
-        {isMobilePortrait && (
-          <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center bg-background">
-            <div className="flex flex-col items-center gap-6 p-8 text-center">
-              {/* Animated phone icon */}
-              <div className="relative">
-                <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/30">
-                  <Smartphone className="w-12 h-12 text-white" />
-                </div>
-                {/* Rotate arrow */}
-                <div className="absolute -right-4 top-1/2 -translate-y-1/2">
-                  <RotateCcw className="w-8 h-8 text-amber-500 animate-spin" style={{ animationDuration: '3s' }} />
-                </div>
-              </div>
-
+        {canManageHierarchy ? (
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              {tr("Adicionar", "Add")}
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{tr("Ligar Home Assistant", "Connect Home Assistant")}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
               <div className="space-y-2">
-                <h2 className="text-xl font-bold">
-                  {tr("Rode o seu telemóvel", "Rotate your phone")}
-                </h2>
-                <p className="text-muted-foreground text-sm max-w-xs">
-                  {tr(
-                    "Para uma melhor experiência, por favor rode o seu dispositivo para a posição horizontal (landscape).",
-                    "For a better experience, please rotate your device to landscape mode."
-                  )}
-                </p>
+                <Label>{tr("Loja", "Store")}</Label>
+                <Select value={effectiveStore} onValueChange={setStoreId}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stores.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-
-              {/* Landscape illustration */}
-              <div className="flex items-center gap-4 text-muted-foreground">
-                <div className="w-8 h-12 border-2 border-current rounded-md opacity-50" />
-                <RotateCcw className="w-5 h-5" />
-                <div className="w-14 h-8 border-2 border-amber-500 rounded-md bg-amber-500/10" />
+              <div className="space-y-2">
+                <Label>{tr("Nome", "Name")}</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} />
               </div>
-            </div>
-
-            {/* Subtle background pattern */}
-            <div className="absolute inset-0 -z-10 opacity-5">
-              <div
-                className="absolute inset-0"
-                style={{
-                  backgroundImage: `radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)`,
-                  backgroundSize: "40px 40px",
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Custom Loading Overlay - hides HA branding during load */}
-        {isLoading && !isMobilePortrait && (
-          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background">
-            {/* Custom branded loading screen */}
-            <div className="flex flex-col items-center gap-6">
-              {/* Your brand logo/icon */}
-              <div className="relative">
-                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/30">
-                  <svg
-                    viewBox="0 0 24 24"
-                    className="w-10 h-10 text-white"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    {/* IoT/Network icon */}
-                    <circle cx="12" cy="12" r="3" />
-                    <circle cx="12" cy="5" r="1.5" />
-                    <circle cx="19" cy="12" r="1.5" />
-                    <circle cx="12" cy="19" r="1.5" />
-                    <circle cx="5" cy="12" r="1.5" />
-                    <line x1="12" y1="8" x2="12" y2="9" />
-                    <line x1="15" y1="12" x2="16" y2="12" />
-                    <line x1="12" y1="15" x2="12" y2="16" />
-                    <line x1="8" y1="12" x2="9" y2="12" />
-                  </svg>
-                </div>
-                {/* Animated ring */}
-                <div className="absolute -inset-2 rounded-3xl border-2 border-cyan-500/30 animate-ping" />
+              <div className="space-y-2">
+                <Label>URL</Label>
+                <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://ha.example.com" />
               </div>
-
-              {/* Brand name */}
-              <div className="text-center">
-                <h2 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-                  CtrlX
-                </h2>
-              </div>
-
-              {/* Loading spinner and message */}
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <Loader2 className="w-5 h-5 animate-spin text-cyan-500" />
-                <span className="text-sm">{loadingMessage}</span>
-              </div>
-
-              {/* Progress bar */}
-              <div className="w-48 h-1 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full animate-pulse"
-                  style={{
-                    width: "60%",
-                    animation: "loading-progress 2s ease-in-out infinite",
-                  }}
+              <div className="space-y-2">
+                <Label>API Token</Label>
+                <Input
+                  type="password"
+                  value={apiToken}
+                  onChange={(e) => setApiToken(e.target.value)}
                 />
               </div>
             </div>
-
-            {/* Subtle background pattern */}
-            <div className="absolute inset-0 -z-10 opacity-5">
-              <div
-                className="absolute inset-0"
-                style={{
-                  backgroundImage: `radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)`,
-                  backgroundSize: "40px 40px",
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        <iframe
-          ref={iframeRef}
-          src={dashboardUrl}
-          className="w-full border-0"
-          title="Dashboard de Controlo"
-          onError={() => {
-            setError("Falha ao carregar o dashboard");
-            setIsLoading(false);
-          }}
-          onLoad={handleIframeLoad}
-          sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
-          scrolling="no"
-          style={{
-            width: `calc(100% + ${HA_LEFT_CHROME_PX}px)`,
-            height: `calc(100vh - 4rem + ${HA_TOP_CHROME_PX}px)`,
-            minHeight: '1500px',
-            transform: `translate(-${HA_LEFT_CHROME_PX}px, -${HA_TOP_CHROME_PX}px)`,
-            opacity: isLoading || isMobilePortrait ? 0 : 1,
-            transition: "opacity 0.3s ease-in-out",
-            overflow: 'hidden',
-          }}
-        />
+            <DialogFooter>
+              <Button
+                disabled={!name || !url || !apiToken || create.isPending}
+                onClick={() => create.mutate()}
+              >
+                {create.isPending
+                  ? tr("A descobrir…", "Discovering…")
+                  : tr("Guardar e descobrir", "Save & discover")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        ) : null}
       </div>
 
-      {/* Custom animation for progress bar */}
-      <style>{`
-        @keyframes loading-progress {
-          0% { width: 20%; margin-left: 0; }
-          50% { width: 60%; margin-left: 20%; }
-          100% { width: 20%; margin-left: 80%; }
-        }
-      `}</style>
+      <div className="rounded-lg border divide-y">
+        {instances.map((i) => (
+          <div key={i.id} className="flex items-center justify-between px-4 py-3 gap-3">
+            <div className="min-w-0">
+              <div className="font-medium">{i.name}</div>
+              <div className="text-xs text-muted-foreground truncate">{i.url}</div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <StatusBadge status={i.status} />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={sync.isPending}
+                onClick={() => sync.mutate(i.id)}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${sync.isPending ? "animate-spin" : ""}`} />
+                {tr("Sincronizar", "Sync")}
+              </Button>
+            </div>
+          </div>
+        ))}
+        {instances.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-muted-foreground">
+            {tr(
+              "Sem instâncias HA. Adicione uma para popular o inventário de dispositivos.",
+              "No HA instances. Add one to populate the device inventory.",
+            )}
+          </p>
+        ) : null}
+      </div>
+
+      {instances[0] ? (
+        <p className="text-sm text-muted-foreground">
+          {tr(
+            "Os dispositivos descobertos ficam na loja sob o mobiliário “Home Assistant” → kit “Dispositivos descobertos”. Abra a loja em ",
+            "Discovered devices live under the store’s “Home Assistant” furniture → “Discovered devices” kit. Open the store from ",
+          )}
+          <Link href="/stores" className="underline underline-offset-2">
+            {tr("Lojas", "Stores")}
+          </Link>
+          {tr(" ou veja o estado em ", " or check live state in ")}
+          <Link href="/monitoring" className="underline underline-offset-2">
+            {tr("Monitorização", "Monitoring")}
+          </Link>
+          .
+        </p>
+      ) : null}
     </div>
   );
 }

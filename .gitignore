@@ -1,0 +1,135 @@
+# ============================================
+# General
+# ============================================
+
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.temp
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# ============================================
+# React / Node.js
+# ============================================
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build output
+dist/
+build/
+out/
+
+# Vite
+.vite/
+
+# React / Next.js (if applicable)
+.next/
+.nuxt/
+
+# Coverage
+coverage/
+
+# Cache
+.cache/
+.parcel-cache/
+.eslintcache
+
+# ============================================
+# C# / .NET
+# ============================================
+
+# Build output
+bin/
+obj/
+
+# .NET generated files
+*.dll
+*.exe
+*.pdb
+*.cache
+*.user
+*.suo
+
+# Visual Studio
+.vs/
+*.user
+*.rsuser
+*.sln.docstates
+
+# Rider
+.idea/
+*.sln.iml
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# ============================================
+# NuGet
+# ============================================
+
+*.nupkg
+*.snupkg
+packages/
+
+# ============================================
+# Test results
+# ============================================
+
+TestResults/
+*.trx
+
+# ============================================
+# ASP.NET
+# ============================================
+
+wwwroot/dist/
+
+# ============================================
+# Entity Framework
+# ============================================
+
+*.db
+*.db-shm
+*.db-wal
+
+# ============================================
+# OS
+# ============================================
+
+# Windows
+$RECYCLE.BIN/
+*.lnk
+
+# macOS
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+
+# ============================================
+# Docker
+# ============================================
+
+docker-compose.override.yml
+
+# ============================================
+# Local configuration / secrets
+# ============================================
+
+appsettings.Development.json
+appsettings.Local.json
+secrets.json
