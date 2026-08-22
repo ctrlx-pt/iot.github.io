@@ -2,8 +2,9 @@ import express, { type Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
 import { registerRoutes, type BroadcastDeviceUpdate } from "./routes";
 import { registerPhase1Routes } from "./register-phase1";
-import { correlationIdMiddleware, errorHandler } from "./middleware/errors";
+import { correlationIdMiddleware, errorHandler, ok } from "./middleware/errors";
 import { log } from "./logger";
+import { isServerlessRuntime } from "./config/runtime";
 
 declare module "http" {
   interface IncomingMessage {
@@ -13,6 +14,10 @@ declare module "http" {
 
 export async function createApp(opts?: { broadcastDeviceUpdate?: BroadcastDeviceUpdate }) {
   const app = express();
+
+  if (isServerlessRuntime()) {
+    app.set("trust proxy", 1);
+  }
 
   // CORS for separate frontend domain (set CORS_ORIGIN to your frontend URL)
   const allowedOrigins = (process.env.CORS_ORIGIN ?? "")
@@ -90,6 +95,13 @@ export async function createApp(opts?: { broadcastDeviceUpdate?: BroadcastDevice
     });
 
     next();
+  });
+
+  app.get("/api/health", (_req, res) => {
+    ok(res, {
+      status: "ok",
+      runtime: isServerlessRuntime() ? "serverless" : "node",
+    });
   });
 
   // Phase 1 SaaS routes first (auth, companies, stores, dashboard)

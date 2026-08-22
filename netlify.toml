@@ -1,14 +1,23 @@
 [build]
-  # Backend-only deployment (API via Netlify Functions)
-  command = "node -e \"console.log('backend-only build')\""
+  command = "npm ci"
   publish = "public"
   functions = "netlify/functions"
 
 [build.environment]
   NODE_VERSION = "20"
+  NODE_ENV = "production"
+  NETLIFY = "true"
+  DISABLE_AUTOMATION_SCHEDULER = "true"
+
+[functions.api]
+  node_bundler = "esbuild"
+  external_node_modules = ["@neondatabase/serverless", "bufferutil", "utf-8-validate", "ws"]
+
+[functions."automations-cron"]
+  node_bundler = "esbuild"
+  external_node_modules = ["@neondatabase/serverless", "ws"]
 
 # Home Assistant asset paths that sometimes escape our HTML rewriter / SW.
-# Route them into the same /api/ha/static/* proxy so we don't get origin 404s.
 [[redirects]]
   from = "/homeassistant/*"
   to = "/.netlify/functions/api/ha/static/homeassistant/:splat"
@@ -49,10 +58,6 @@
   to = "/.netlify/functions/api/:splat"
   status = 200
 
-# Home Assistant dashboard deep-links
-# The HA iframe updates browser history to routes like /dashboard-conex/aa.
-# Since this Netlify site is backend-only (no SPA), we must rewrite those paths
-# back into the HA dashboard proxy endpoint.
 [[redirects]]
   from = "/dashboard-conex/*"
   to = "/.netlify/functions/api/ha/dashboard?dashboard=dashboard-conex&view=:splat"
@@ -63,7 +68,6 @@
   to = "/.netlify/functions/api/ha/dashboard?dashboard=lovelace&view=:splat"
   status = 200
 
-# Service Worker for Home Assistant proxy - must be served by serverless function
 [[redirects]]
   from = "/ha-proxy-sw.js"
   to = "/.netlify/functions/api/ha-proxy-sw.js"
@@ -71,6 +75,5 @@
 
 [[redirects]]
   from = "/auth/*"
-  # Home Assistant auth endpoints - keep separate from app "/api/auth/*" routes.
   to = "/.netlify/functions/api/ha-auth/:splat"
   status = 200

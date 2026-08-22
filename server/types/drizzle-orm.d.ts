@@ -14,10 +14,21 @@ declare module "drizzle-orm" {
 }
 
 declare module "drizzle-orm/neon-http" {
-  export function drizzle(client: any): any;
+  export function drizzle(client: any, opts?: any): any;
+}
+
+declare module "drizzle-orm/neon-serverless" {
+  export function drizzle(client: any, opts?: any): any;
 }
 
 declare module "@neondatabase/serverless" {
   export function neon(connectionString: string): any;
+  export class Pool {
+    constructor(opts: { connectionString: string });
+    connect(): Promise<any>;
+    query(...args: any[]): Promise<any>;
+    end(): Promise<void>;
+  }
+  export const neonConfig: { webSocketConstructor?: unknown };
 }
 

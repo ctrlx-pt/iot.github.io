@@ -90,37 +90,46 @@ export async function runAutomationNow(auto: AutomationRow) {
   return { automationId: auto.id, results };
 }
 
-/** Simple minute ticker for time-based automations. */
+/** Run one scheduler tick (used by Netlify cron + long-running server). */
+export async function runAutomationSchedulerTick() {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(automations)
+    .where(eq(automations.isEnabled, true));
+  const now = new Date();
+  const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const ran: string[] = [];
+
+  for (const auto of rows) {
+    if (auto.triggerType !== "time") continue;
+    const cfg = JSON.parse(auto.configuration || "{}") as AutoConfig;
+    if (!cfg.time || cfg.time !== hhmm) continue;
+    if (auto.lastRunAt) {
+      const last = new Date(auto.lastRunAt);
+      if (
+        last.getFullYear() === now.getFullYear() &&
+        last.getMonth() === now.getMonth() &&
+        last.getDate() === now.getDate() &&
+        last.getHours() === now.getHours() &&
+        last.getMinutes() === now.getMinutes()
+      ) {
+        continue;
+      }
+    }
+    await runAutomationNow(auto);
+    ran.push(auto.id);
+  }
+
+  return { checked: rows.length, ran, at: now.toISOString() };
+}
+
+/** Simple minute ticker for time-based automations (Docker / local server only). */
 export function startAutomationScheduler() {
+  if (process.env.DISABLE_AUTOMATION_SCHEDULER === "true") return;
   setInterval(async () => {
     try {
-      const db = getDb();
-      const rows = await db
-        .select()
-        .from(automations)
-        .where(eq(automations.isEnabled, true));
-      const now = new Date();
-      const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-
-      for (const auto of rows) {
-        if (auto.triggerType !== "time") continue;
-        const cfg = JSON.parse(auto.configuration || "{}") as AutoConfig;
-        if (!cfg.time || cfg.time !== hhmm) continue;
-        // avoid double-run in same minute
-        if (auto.lastRunAt) {
-          const last = new Date(auto.lastRunAt);
-          if (
-            last.getFullYear() === now.getFullYear() &&
-            last.getMonth() === now.getMonth() &&
-            last.getDate() === now.getDate() &&
-            last.getHours() === now.getHours() &&
-            last.getMinutes() === now.getMinutes()
-          ) {
-            continue;
-          }
-        }
-        await runAutomationNow(auto);
-      }
+      await runAutomationSchedulerTick();
     } catch (err) {
       console.error("[automations] scheduler tick failed", err);
     }

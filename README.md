@@ -43,6 +43,51 @@ npm run seed
 npm run dev
 ```
 
+## Deploy backend (Netlify + Neon)
+
+The API runs as a **Netlify Function** (`netlify/functions/api.ts`) wrapping the Express app via `serverless-http`. Postgres uses the Neon serverless driver when `NETLIFY=true`.
+
+### 1. Bootstrap Neon (once)
+
+```bash
+psql "$DATABASE_URL" -f scripts/neon-init.sql
+```
+
+Or locally: `npm run db:push && npm run seed` against your Neon pooled URL (`?sslmode=require`).
+
+### 2. Netlify site settings → Environment variables
+
+| Variable | Example |
+|----------|---------|
+| `DATABASE_URL` | `postgresql://...@ep-xxx-pooler.region.aws.neon.tech/neondb?sslmode=require` |
+| `JWT_SECRET` | strong random secret |
+| `ENCRYPTION_KEY` | strong random 32+ char key |
+| `CORS_ORIGIN` | `https://your-frontend.example.com` (comma-separated if needed) |
+| `NETLIFY` | `true` (also set in `netlify.toml`) |
+| `DISABLE_AUTOMATION_SCHEDULER` | `true` (cron runs in `automations-cron`) |
+
+### 3. Connect repo to Netlify
+
+- Build command: `npm ci` (from `netlify.toml`)
+- Functions directory: `netlify/functions`
+- Publish directory: `public` (placeholder; frontend is on GitHub Pages)
+
+### 4. Frontend API URL
+
+Set in GitHub Pages workflow or `.env`:
+
+```env
+VITE_API_BASE_URL=https://YOUR-SITE.netlify.app/.netlify/functions
+VITE_ENABLE_WS=false
+VITE_API_CREDENTIALS=omit
+```
+
+### Limitations on Netlify
+
+- **WebSockets** (`/ws`) are not supported — realtime updates are disabled (`VITE_ENABLE_WS=false`).
+- **Automations** time triggers run via the scheduled function `automations-cron` (every minute), not `setInterval`.
+- **Cold starts** — first request after idle may be slower; HA discovery can hit function timeouts on large inventories.
+
 ## Main API
 
 ```text
