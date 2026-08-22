@@ -32,13 +32,12 @@ jobs:
 
       - name: Build frontend (Vite)
         env:
-          # Use root base for custom domains to avoid asset 404s
+          # Root base for custom domain (ctrlx.pt)
           VITE_BASE: "/"
-          # Use path routing; 404.html fallback serves index.html for deep links
           VITE_ROUTER_MODE: "path"
-          # Prefer repo Variable; fallback to Secret if you set it there
           VITE_API_BASE_URL: "https://cerulean-youtiao-491f82.netlify.app/.netlify/functions"
           VITE_API_CREDENTIALS: "omit"
+          VITE_ENABLE_WS: "false"
         run: npm run build:client
 
       - name: Add SPA fallback (404 -> index.html)
@@ -47,6 +46,10 @@ jobs:
       - name: Disable Jekyll on Pages
         run: |
           touch dist/public/.nojekyll
+          cp CNAME dist/public/CNAME
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
