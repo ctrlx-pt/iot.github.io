@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getDb } from "../../db/client";
 import { homeAssistantEntities, homeAssistantInstances } from "../../db/schema";
 import { authenticate, getMembership, roleAtLeast } from "../../middleware/auth";
-import { asyncHandler, fail, ok } from "../../middleware/errors";
+import { asyncHandler, AppError, fail, ok } from "../../middleware/errors";
 import { writeAuditLog } from "../../services/audit";
 import { encryptSecret } from "../../services/crypto/secrets";
 import { discoverDevicesFromHomeAssistant } from "../../services/home-assistant/discover";
@@ -18,6 +18,13 @@ import {
 } from "../../services/home-assistant/automations";
 import { getDeviceScoped, getStoreForUser } from "../../services/tenant-scope";
 import { normalizeHomeAssistantBaseUrl } from "../../../shared/ha-url";
+
+function integrationFail(res: Parameters<typeof fail>[0], err: unknown, fallback: string) {
+  if (err instanceof AppError) {
+    return fail(res, err.status, err.message, err.code);
+  }
+  return fail(res, 502, fallback, "INTEGRATION_UNAVAILABLE");
+}
 
 function sanitizeHa(row: typeof homeAssistantInstances.$inferSelect) {
   const { apiTokenEncrypted: _, ...rest } = row;
@@ -213,10 +220,14 @@ export function createHomeAssistantRouter(): Router {
       if (!inst) return fail(res, 404, "Not found", "NOT_FOUND");
       await getStoreForUser(req.user!, inst.storeId);
       try {
-        const automations = await listAutomationsForInstance(inst.id);
-        return ok(res, { instance: sanitizeHa(inst), automations });
+        const { automations, canManage } = await listAutomationsForInstance(inst.id);
+        return ok(res, { instance: sanitizeHa(inst), automations, canManage });
       } catch (err: any) {
-        return fail(res, 502, err?.message || "Failed to load automations", "INTEGRATION_UNAVAILABLE");
+        const message =
+          err instanceof AppError
+            ? err.message
+            : "Failed to load automations from the integration hub";
+        return fail(res, 502, message, err?.code || "INTEGRATION_UNAVAILABLE");
       }
     }),
   );
@@ -251,7 +262,7 @@ export function createHomeAssistantRouter(): Router {
         const created = await createAutomationForInstance(inst.id, parsed.data);
         return ok(res, created, 201);
       } catch (err: any) {
-        return fail(res, 502, err?.message || "Failed to create automation", "INTEGRATION_UNAVAILABLE");
+        return integrationFail(res, err, "Failed to create automation");
       }
     }),
   );
@@ -290,7 +301,7 @@ export function createHomeAssistantRouter(): Router {
         );
         return ok(res, updated);
       } catch (err: any) {
-        return fail(res, 502, err?.message || "Failed to update automation", "INTEGRATION_UNAVAILABLE");
+        return integrationFail(res, err, "Failed to update automation");
       }
     }),
   );
@@ -314,7 +325,7 @@ export function createHomeAssistantRouter(): Router {
         await deleteAutomationForInstance(inst.id, req.params.configId);
         return ok(res, { configId: req.params.configId });
       } catch (err: any) {
-        return fail(res, 502, err?.message || "Failed to delete automation", "INTEGRATION_UNAVAILABLE");
+        return integrationFail(res, err, "Failed to delete automation");
       }
     }),
   );
@@ -343,7 +354,7 @@ export function createHomeAssistantRouter(): Router {
         await triggerAutomationForInstance(inst.id, entityId);
         return ok(res, { entityId });
       } catch (err: any) {
-        return fail(res, 502, err?.message || "Failed to trigger automation", "INTEGRATION_UNAVAILABLE");
+        return integrationFail(res, err, "Failed to trigger automation");
       }
     }),
   );
@@ -370,7 +381,7 @@ export function createHomeAssistantRouter(): Router {
         await setAutomationEnabled(inst.id, entityId, enabled);
         return ok(res, { entityId, enabled });
       } catch (err: any) {
-        return fail(res, 502, err?.message || "Failed to update automation", "INTEGRATION_UNAVAILABLE");
+        return integrationFail(res, err, "Failed to update automation");
       }
     }),
   );

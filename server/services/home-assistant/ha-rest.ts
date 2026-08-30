@@ -25,6 +25,8 @@ export interface IHomeAssistantService {
   listAutomations(): Promise<HaState[]>;
   triggerAutomation(entityId: string): Promise<void>;
   getAutomationConfigs(): Promise<Array<Record<string, unknown>>>;
+  isAutomationConfigApiAvailable(): Promise<boolean>;
+  getAutomationConfig(configId: string): Promise<Record<string, unknown> | null>;
   saveAutomationConfig(configId: string, config: Record<string, unknown>): Promise<void>;
   deleteAutomationConfig(configId: string): Promise<void>;
 }
@@ -48,19 +50,17 @@ export class HomeAssistantRestService implements IHomeAssistantService {
       /^\s*</.test(text) || (contentType || "").toLowerCase().includes("text/html");
     if (looksHtml) {
       throw new Error(
-        `Home Assistant returned a web page instead of the API (${method} ${path}). Use the Home Assistant origin (e.g. https://ha.example.com), not a dashboard URL such as /dashboard/console. Requested: ${requestUrl}`,
+        `Integration hub returned a web page instead of the API (${method} ${path}). Check the hub URL — use the origin (e.g. https://ha.example.com), not a dashboard page such as /dashboard/console.`,
       );
     }
     try {
       return JSON.parse(text);
     } catch {
-      throw new Error(
-        `Home Assistant returned invalid JSON (${method} ${path}). Requested: ${requestUrl}`,
-      );
+      throw new Error(`Integration hub returned invalid JSON (${method} ${path}).`);
     }
   }
 
-  private async request(method: string, path: string, body?: unknown) {
+  private async request(method: string, path: string, body?: unknown, opts?: { allowNotFound?: boolean }) {
     const requestUrl = this.url(path);
     const res = await fetch(requestUrl, {
       method,
@@ -71,16 +71,17 @@ export class HomeAssistantRestService implements IHomeAssistantService {
       body: body != null ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(12_000),
     });
+    if (res.status === 404 && opts?.allowNotFound) return null;
     if (!res.ok) {
       const text = await res.text();
       const looksHtml =
         /^\s*</.test(text) || (res.headers.get("content-type") || "").toLowerCase().includes("text/html");
       if (looksHtml) {
         throw new Error(
-          `Home Assistant returned HTTP ${res.status} HTML instead of JSON (${method} ${path}). Use the Home Assistant origin, not a dashboard page. Requested: ${requestUrl}`,
+          `Integration hub returned HTTP ${res.status} HTML instead of JSON (${method} ${path}). Check the hub URL — use the origin, not a dashboard page.`,
         );
       }
-      throw new Error(`Home Assistant ${method} ${path} failed: ${res.status} ${text.slice(0, 300)}`);
+      throw new Error(`Integration hub request failed (${method} ${path}): ${res.status}`);
     }
     if (res.status === 204) return null;
     const text = await res.text();
@@ -125,8 +126,27 @@ export class HomeAssistantRestService implements IHomeAssistantService {
   }
 
   async getAutomationConfigs(): Promise<Array<Record<string, unknown>>> {
-    const result = await this.request("GET", "/api/config/automation/config");
+    const result = await this.request("GET", "/api/config/automation/config", undefined, {
+      allowNotFound: true,
+    });
     return Array.isArray(result) ? result : [];
+  }
+
+  async isAutomationConfigApiAvailable(): Promise<boolean> {
+    const result = await this.request("GET", "/api/config/automation/config", undefined, {
+      allowNotFound: true,
+    });
+    return Array.isArray(result);
+  }
+
+  async getAutomationConfig(configId: string): Promise<Record<string, unknown> | null> {
+    const result = await this.request(
+      "GET",
+      `/api/config/automation/config/${encodeURIComponent(configId)}`,
+      undefined,
+      { allowNotFound: true },
+    );
+    return result && typeof result === "object" ? (result as Record<string, unknown>) : null;
   }
 
   async saveAutomationConfig(configId: string, config: Record<string, unknown>): Promise<void> {

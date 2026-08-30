@@ -106,16 +106,35 @@ function parseSimpleAutomation(config: Record<string, unknown>): {
   return { time, deviceEntityId, action };
 }
 
-export async function listAutomationsForInstance(instanceId: string): Promise<AutomationView[]> {
+function integrationError(message: string, code = "INTEGRATION_UNAVAILABLE"): never {
+  throw new AppError(502, message, code);
+}
+
+function rethrowIntegrationError(err: unknown, fallback: string): never {
+  if (err instanceof AppError) throw err;
+  const raw = err instanceof Error ? err.message : String(err);
+  if (/404/.test(raw)) {
+    integrationError(
+      "Automation configuration is not available on this integration hub. Listing and running automations still works.",
+    );
+  }
+  integrationError(fallback);
+}
+
+export async function listAutomationsForInstance(instanceId: string): Promise<{
+  automations: AutomationView[];
+  canManage: boolean;
+}> {
   const { client } = await getHaClient(instanceId);
   const states = await client.listAutomations();
   const configs = await client.getAutomationConfigs();
+  const canManage = await client.isAutomationConfigApiAvailable();
   const configById = new Map<string, Record<string, unknown>>();
   for (const cfg of configs) {
     if (cfg && typeof cfg.id === "string") configById.set(cfg.id, cfg);
   }
 
-  return states.map((state) => {
+  const automations = states.map((state) => {
     const configId = configIdFromState(state);
     const parsed = parseSimpleAutomation(configById.get(configId) ?? {});
     return {
@@ -130,6 +149,8 @@ export async function listAutomationsForInstance(instanceId: string): Promise<Au
       action: parsed.action,
     };
   });
+
+  return { automations, canManage };
 }
 
 export async function createAutomationForInstance(
@@ -141,8 +162,17 @@ export async function createAutomationForInstance(
   }
   const configId = `ctrlx_${nanoid(8).toLowerCase()}`;
   const { client } = await getHaClient(instanceId);
+  if (!(await client.isAutomationConfigApiAvailable())) {
+    integrationError(
+      "Cannot create automations on this integration hub. Enable the configuration API on the hub or create automations there first.",
+    );
+  }
   const config = buildAutomationConfig(configId, input);
-  await client.saveAutomationConfig(configId, config);
+  try {
+    await client.saveAutomationConfig(configId, config);
+  } catch (err) {
+    rethrowIntegrationError(err, "Failed to create automation");
+  }
   return { configId, entityId: `automation.${configId}` };
 }
 
@@ -152,8 +182,17 @@ export async function updateAutomationForInstance(
   input: SaveAutomationInput,
 ): Promise<{ configId: string; entityId: string }> {
   const { client } = await getHaClient(instanceId);
+  if (!(await client.isAutomationConfigApiAvailable())) {
+    integrationError(
+      "Cannot edit automations on this integration hub. Enable the configuration API on the hub.",
+    );
+  }
   const config = buildAutomationConfig(configId, input);
-  await client.saveAutomationConfig(configId, config);
+  try {
+    await client.saveAutomationConfig(configId, config);
+  } catch (err) {
+    rethrowIntegrationError(err, "Failed to update automation");
+  }
   return { configId, entityId: `automation.${configId}` };
 }
 
@@ -162,7 +201,16 @@ export async function deleteAutomationForInstance(
   configId: string,
 ): Promise<void> {
   const { client } = await getHaClient(instanceId);
-  await client.deleteAutomationConfig(configId);
+  if (!(await client.isAutomationConfigApiAvailable())) {
+    integrationError(
+      "Cannot delete automations on this integration hub. Enable the configuration API on the hub.",
+    );
+  }
+  try {
+    await client.deleteAutomationConfig(configId);
+  } catch (err) {
+    rethrowIntegrationError(err, "Failed to delete automation");
+  }
 }
 
 export async function triggerAutomationForInstance(
@@ -188,8 +236,8 @@ export async function setAutomationEnabled(
 
 /** @deprecated use listAutomationsForInstance */
 export async function listHomeAssistantAutomations(instanceId: string) {
-  const rows = await listAutomationsForInstance(instanceId);
-  return rows.map((a) => ({
+  const { automations } = await listAutomationsForInstance(instanceId);
+  return automations.map((a) => ({
     entityId: a.entityId,
     name: a.name,
     state: a.state,

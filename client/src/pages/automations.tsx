@@ -101,7 +101,7 @@ export default function AutomationsPage() {
     isLoading,
     refetch,
     isFetching,
-  } = useQuery<{ automations: Automation[] }>({
+  } = useQuery<{ automations: Automation[]; canManage?: boolean }>({
     queryKey: ["/api/home-assistant", instance?.id, "automations"],
     queryFn: () => apiJson("GET", `/api/home-assistant/${instance.id}/automations`),
     enabled: !!instance?.id,
@@ -166,6 +166,7 @@ export default function AutomationsPage() {
   });
 
   const automations = haData?.automations ?? [];
+  const canManage = haData?.canManage !== false;
 
   const openCreate = () => {
     setEditing(null);
@@ -211,7 +212,7 @@ export default function AutomationsPage() {
             })}
           </p>
         </div>
-        {instance && canManageHierarchy ? (
+        {instance && canManageHierarchy && canManage ? (
           <Button onClick={openCreate} disabled={linkedDevices.length === 0}>
             <Plus className="h-4 w-4 mr-2" />
             {tr({ en: "New automation", pt: "Nova automação" })}
@@ -250,7 +251,16 @@ export default function AutomationsPage() {
       ) : isLoading ? (
         <p className="text-sm text-muted-foreground">{tr({ en: "Loading…", pt: "A carregar…" })}</p>
       ) : (
-        <div className="rounded-lg border divide-y">
+        <>
+          {!canManage ? (
+            <p className="text-sm text-muted-foreground rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+              {tr({
+                en: "This integration hub does not expose automation configuration. You can list and run automations, but creating or editing from the dashboard requires the hub configuration API.",
+                pt: "Este hub de integração não expõe a configuração de automações. Pode listar e executar automações, mas criar ou editar no dashboard requer a API de configuração do hub.",
+              })}
+            </p>
+          ) : null}
+          <div className="rounded-lg border divide-y">
           {automations.map((a) => (
             <div key={a.entityId} className="flex items-center justify-between gap-3 px-4 py-3">
               <div className="min-w-0 flex-1">
@@ -294,7 +304,7 @@ export default function AutomationsPage() {
                   <Play className="h-3.5 w-3.5 mr-1" />
                   {tr({ en: "Run", pt: "Executar" })}
                 </Button>
-                {canManageHierarchy ? (
+                {canManageHierarchy && canManage ? (
                   <>
                     <Button size="sm" variant="ghost" onClick={() => openEdit(a)}>
                       <Pencil className="h-3.5 w-3.5" />
@@ -316,6 +326,7 @@ export default function AutomationsPage() {
             </p>
           ) : null}
         </div>
+        </>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

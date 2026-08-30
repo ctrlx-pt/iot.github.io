@@ -56,8 +56,8 @@ export async function getDeviceIntegrations(deviceId: string, user: AuthUser) {
         const all = await listAutomationsForInstance(instanceId);
         const deviceEntityId = device.homeAssistantEntityId ?? entityRows[0]?.entityId ?? null;
         haAutomations = deviceEntityId
-          ? all.filter((a) => a.deviceEntityId === deviceEntityId)
-          : all;
+          ? all.automations.filter((a) => a.deviceEntityId === deviceEntityId)
+          : all.automations;
       } catch {
         haAutomations = [];
       }
