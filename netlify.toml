@@ -8,12 +8,17 @@
   NODE_ENV = "production"
   NETLIFY = "true"
   DISABLE_AUTOMATION_SCHEDULER = "true"
+  DISABLE_HEARTBEAT_SCHEDULER = "true"
 
 [functions.api]
   node_bundler = "esbuild"
   external_node_modules = ["@neondatabase/serverless", "bufferutil", "utf-8-validate", "ws"]
 
 [functions."automations-cron"]
+  node_bundler = "esbuild"
+  external_node_modules = ["@neondatabase/serverless", "ws"]
+
+[functions."device-heartbeat-cron"]
   node_bundler = "esbuild"
   external_node_modules = ["@neondatabase/serverless", "ws"]
 

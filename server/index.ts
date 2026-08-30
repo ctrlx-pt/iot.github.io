@@ -6,6 +6,7 @@ import { createApp } from "./app";
 import { log } from "./logger";
 import { registerRealtimeClient } from "./services/realtime";
 import { startAutomationScheduler } from "./services/automations/runner";
+import { startDeviceHeartbeatScheduler } from "./services/devices/heartbeat-scheduler";
 
 (async () => {
   const httpServer = createServer();
@@ -79,6 +80,7 @@ import { startAutomationScheduler } from "./services/automations/runner";
   }
 
   startAutomationScheduler();
+  startDeviceHeartbeatScheduler();
 
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen(
