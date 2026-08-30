@@ -43,13 +43,13 @@ export default function KitDetailPage() {
           <p className="font-mono text-sm text-muted-foreground">{kit.kitCode}</p>
           <p className="mt-2 text-sm text-muted-foreground max-w-xl">
             {tr(
-              "Os dispositivos são descobertos automaticamente a partir do Home Assistant. Configure a integração e sincronize em Operações → Home Assistant.",
-              "Devices are discovered automatically from Home Assistant. Configure the integration and sync under Operations → Home Assistant.",
+              "Os dispositivos são sincronizados automaticamente a partir do hub de integração. Configure em Operações → Hub de integração.",
+              "Devices sync automatically from the integration hub. Configure under Operations → Integration hub.",
             )}
           </p>
         </div>
         <Button asChild variant="outline">
-          <Link href="/home-assistant">{tr("Home Assistant", "Home Assistant")}</Link>
+          <Link href="/home-assistant">{tr("Hub de integração", "Integration hub")}</Link>
         </Button>
       </div>
 
@@ -68,8 +68,8 @@ export default function KitDetailPage() {
         {devices.length === 0 ? (
           <p className="px-4 py-6 text-sm text-muted-foreground">
             {tr(
-              "Ainda sem dispositivos. Adicione o Home Assistant desta loja e sincronize para os detetar.",
-              "No devices yet. Add this store’s Home Assistant and sync to discover them.",
+              "Ainda sem dispositivos. Ligue o hub de integração desta loja e sincronize.",
+              "No devices yet. Connect this store's integration hub and sync.",
             )}
           </p>
         ) : null}

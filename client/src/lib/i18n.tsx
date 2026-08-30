@@ -1,12 +1,16 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
-export type Language = "pt" | "en";
+export type Language = "en" | "pt" | "es" | "fr";
+
+type TranslationEntry = {
+  en: string;
+  pt?: string;
+  es?: string;
+  fr?: string;
+};
 
 type Translations = {
-  [key: string]: {
-    pt: string;
-    en: string;
-  };
+  [key: string]: TranslationEntry;
 };
 
 export const translations: Translations = {
@@ -245,10 +249,8 @@ const I18nContext = createContext<I18nContextType | null>(null);
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<Language>(() => {
     const saved = localStorage.getItem("language");
-    if (saved === "pt" || saved === "en") return saved;
-    // Default to browser language or Portuguese
-    const browserLang = navigator.language.split("-")[0];
-    return browserLang === "en" ? "en" : "pt";
+    if (saved === "en" || saved === "pt" || saved === "es" || saved === "fr") return saved;
+    return "en";
   });
 
   useEffect(() => {
@@ -263,7 +265,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       return key;
     }
     
-    let text = translation[language];
+    let text = translation[language] ?? translation.en;
     
     if (params) {
       Object.entries(params).forEach(([key, value]) => {

@@ -35,8 +35,18 @@ export function useCurrentUser() {
     user,
     isLoading,
     isSuperAdmin,
-    /** Create/edit companies, stores, furniture, kits, gateways, HA */
+    /** Create/edit companies, stores, furniture, kits, gateways, integration hub */
     canManageHierarchy: isSuperAdmin,
+    /** Edit device metadata (description, image, address) */
+    canEditDevice:
+      isSuperAdmin ||
+      !!user?.memberships?.some((m) =>
+        ["CompanyAdmin", "StoreManager"].includes(m.role),
+      ),
+    /** Manage company users (create, deactivate, assign stores) */
+    canManageCompanyUsers:
+      isSuperAdmin ||
+      !!user?.memberships?.some((m) => m.role === "CompanyAdmin"),
     roleLabel: isSuperAdmin
       ? "SuperAdmin"
       : user?.memberships?.[0]?.role || user?.email || "",

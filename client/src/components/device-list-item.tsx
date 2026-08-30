@@ -50,9 +50,6 @@ export function DeviceListItem({
           {deviceCode ? (
             <div className="text-xs font-mono text-muted-foreground truncate">{deviceCode}</div>
           ) : null}
-          {homeAssistantEntityId ? (
-            <div className="text-xs text-muted-foreground truncate">{homeAssistantEntityId}</div>
-          ) : null}
         </div>
       </div>
       {status ? <StatusBadge status={status} /> : null}

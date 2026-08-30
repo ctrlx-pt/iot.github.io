@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
+import { DeviceLocationSearch } from "@/components/device-location-search";
 
 type SearchResult = {
   type: "store" | "space" | "light" | "tv";
@@ -277,6 +278,8 @@ export default function Search() {
           )}
         </p>
       </div>
+
+      <DeviceLocationSearch />
 
       {/* Search Bar */}
       <div className="flex flex-col sm:flex-row gap-3">

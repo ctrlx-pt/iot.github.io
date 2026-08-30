@@ -78,7 +78,7 @@ export default function HomeAssistantPage() {
         });
       } else {
         toast({
-          title: tr("Home Assistant ligado", "Home Assistant connected"),
+          title: tr("Hub de integração ligado", "Integration hub connected"),
           description: tr(
             `${d?.created ?? 0} novos · ${d?.updated ?? 0} atualizados · ${d?.discovered ?? 0} detetados`,
             `${d?.created ?? 0} created · ${d?.updated ?? 0} updated · ${d?.discovered ?? 0} discovered`,
@@ -108,8 +108,8 @@ export default function HomeAssistantPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <Breadcrumbs items={[{ label: "Home Assistant" }]} />
-          <h1 className="text-2xl font-semibold">Home Assistant</h1>
+          <Breadcrumbs items={[{ label: tr("Hub de integração", "Integration hub") }]} />
+          <h1 className="text-2xl font-semibold">{tr("Hub de integração", "Integration hub")}</h1>
           <p className="text-sm text-muted-foreground max-w-2xl">
             {tr(
               "Adicione URL e token da loja. O CtrlX deteta automaticamente lights, switches, TVs e outros controláveis via API — sem adicionar dispositivos à mão.",
@@ -127,7 +127,7 @@ export default function HomeAssistantPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{tr("Ligar Home Assistant", "Connect Home Assistant")}</DialogTitle>
+              <DialogTitle>{tr("Ligar hub de integração", "Connect integration hub")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-3">
               <div className="space-y-2">
@@ -211,8 +211,8 @@ export default function HomeAssistantPage() {
       {instances[0] ? (
         <p className="text-sm text-muted-foreground">
           {tr(
-            "Os dispositivos descobertos ficam na loja sob o mobiliário “Home Assistant” → kit “Dispositivos descobertos”. Abra a loja em ",
-            "Discovered devices live under the store’s “Home Assistant” furniture → “Discovered devices” kit. Open the store from ",
+            "Os dispositivos sincronizados ficam na loja sob “Integração de dispositivos” → “Dispositivos sincronizados”. Abra a loja em ",
+            "Synced devices live under “Device integration” → “Synced devices”. Open the store from ",
           )}
           <Link href="/stores" className="underline underline-offset-2">
             {tr("Lojas", "Stores")}

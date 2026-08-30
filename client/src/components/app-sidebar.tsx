@@ -41,6 +41,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { getToken, apiUrl, clearToken } from "@/lib/auth";
 import { unwrapApiData } from "@/lib/queryClient";
 import { useTranslation } from "@/lib/i18n";
+import { useCurrentUser } from "@/hooks/use-current-user";
 
 type MeResponse = {
   user: {
@@ -59,6 +60,7 @@ export function AppSidebar() {
   const queryClient = useQueryClient();
   const { language } = useTranslation();
   const tr = (pt: string, en: string) => (language === "pt" ? pt : en);
+  const { canManageCompanyUsers } = useCurrentUser();
 
   const { data: me } = useQuery<MeResponse>({
     queryKey: ["/api/auth/me"],
@@ -106,12 +108,12 @@ export function AppSidebar() {
   const hierarchySoon: { href: string; label: string; icon: any }[] = [];
 
   const ops = [
-    { href: "/home-assistant", label: "Home Assistant", icon: Shield, soon: false },
+    { href: "/home-assistant", label: tr("Hub de integração", "Integration hub"), icon: Shield, soon: false },
     { href: "/automations", label: tr("Automações", "Automations"), icon: Clock, soon: false },
     { href: "/monitoring", label: tr("Monitorização", "Monitoring"), icon: Activity, soon: false },
     { href: "/logs", label: tr("Logs", "Logs"), icon: History, soon: false },
-    ...(user?.isSuperAdmin
-      ? [{ href: "/users", label: tr("Utilizadores", "Users"), icon: Users, soon: false }]
+    ...(user?.isSuperAdmin || canManageCompanyUsers
+      ? [{ href: "/company-users", label: tr("Utilizadores", "Users"), icon: Users, soon: false }]
       : []),
     { href: "/settings", label: tr("Definições", "Settings"), icon: Settings, soon: false },
   ];

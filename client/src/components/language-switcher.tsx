@@ -9,8 +9,10 @@ import { Languages } from "lucide-react";
 import { useTranslation, type Language } from "@/lib/i18n";
 
 const languages: { code: Language; name: string; flag: string }[] = [
-  { code: "pt", name: "Português", flag: "🇵🇹" },
   { code: "en", name: "English", flag: "🇬🇧" },
+  { code: "pt", name: "Português", flag: "🇵🇹" },
+  { code: "es", name: "Español", flag: "🇪🇸" },
+  { code: "fr", name: "Français", flag: "🇫🇷" },
 ];
 
 export function LanguageSwitcher() {

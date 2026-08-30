@@ -49,6 +49,7 @@ import Gateways from "@/pages/gateways";
 import GatewayDetail from "@/pages/gateway-detail";
 import Automations from "@/pages/automations";
 import Monitoring from "@/pages/monitoring";
+import TenantUsers from "@/pages/tenant-users";
 import { useMemo, useState, useEffect, type CSSProperties } from "react";
 import { getToken, clearToken, apiUrl } from "@/lib/auth";
 import { unwrapApiData } from "@/lib/queryClient";
@@ -79,7 +80,8 @@ function AuthenticatedRoutes() {
       <Route path="/ha" component={HomeAssistant} />
       <Route path="/home-assistant" component={HomeAssistant} />
       <Route path="/organizations" component={Organizations} />
-      <Route path="/users" component={Members} />
+      <Route path="/users" component={TenantUsers} />
+      <Route path="/company-users" component={TenantUsers} />
       <Route path="/profile" component={Profile} />
       <Route path="/settings" component={Profile} />
       <Route path="/administration" component={Administration} />

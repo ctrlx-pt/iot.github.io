@@ -144,8 +144,8 @@ export async function runSeed() {
     resetPassword: true,
   });
 
-  // Clients: Operator — can view + control devices, cannot create hierarchy
-  await ensureMembership(puigClient.id, puig.id, "Operator");
+  // Clients: CompanyAdmin (PUIG) can manage store users; LVMH stays Operator demo
+  await ensureMembership(puigClient.id, puig.id, "CompanyAdmin");
   await ensureMembership(lvmhClient.id, lvmh.id, "Operator");
 
   await seedStoreHierarchy(puigStore);
@@ -155,7 +155,7 @@ export async function runSeed() {
   console.log(`  SuperAdmin: ${superAdmin.username} / ${adminPass}`);
   console.log(`  Company 00 PUIG → ${puigStore.storeCode}`);
   console.log(`  Company 01 LVMH → ${lvmhStore.storeCode}`);
-  console.log(`  Client PUIG:  puig / changeme  (Operator)`);
+  console.log(`  Client PUIG:  puig / changeme  (CompanyAdmin)`);
   console.log(`  Client LVMH:  lvmh / changeme  (Operator)`);
 }
 
@@ -214,6 +214,7 @@ async function seedStoreHierarchy(store: typeof stores.$inferSelect) {
       name: spec.name,
       deviceType: spec.type,
       status: "ONLINE",
+      heartbeatSource: "mock",
       lastSeenAt: new Date(),
       configuration: JSON.stringify(
         spec.type === "LED" ? { brightness: 80, colorTemperature: 4000 } : {},

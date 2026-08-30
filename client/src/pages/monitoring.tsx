@@ -38,14 +38,14 @@ export default function MonitoringPage() {
           icon={Cpu}
         />
         <MetricCard
-          title={tr("HA online", "HA online")}
+          title={tr("Hubs online", "Hubs online")}
           value={data.counts.haOnline}
           icon={Activity}
         />
       </div>
 
       <Section title="Gateways" rows={data.gateways} codeKey="hardwareId" />
-      <Section title="Home Assistant" rows={data.homeAssistant} codeKey="url" />
+      <Section title={tr("Hubs de integração", "Integration hubs")} rows={data.homeAssistant} codeKey="url" />
 
       <section className="space-y-2">
         <h2 className="text-lg font-medium">{tr("Dispositivos", "Devices")}</h2>

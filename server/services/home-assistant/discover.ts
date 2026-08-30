@@ -14,6 +14,11 @@ import { identifierGenerator } from "../identifier-generator";
 import { defaultCapabilitiesForType } from "../tenant-scope";
 import { HomeAssistantRestService, type HaState } from "./ha-rest";
 
+const INTEGRATION_FURNITURE_NAMES = ["Integração de dispositivos", "Home Assistant"];
+const INTEGRATION_KIT_NAME = "Dispositivos sincronizados";
+const LEGACY_KIT_NAME = "Dispositivos descobertos";
+const INTEGRATION_GATEWAY_NAME = "Gateway de integração";
+
 const DISCOVERABLE_DOMAINS = new Set([
   "light",
   "switch",
@@ -73,12 +78,9 @@ function isDiscoverable(state: HaState): boolean {
 
 async function ensureDiscoveryKit(storeId: string, storeCode: string) {
   const db = getDb();
-  const existingFurn = await db
-    .select()
-    .from(furniture)
-    .where(and(eq(furniture.storeId, storeId), eq(furniture.name, "Home Assistant")));
+  const allFurn = await db.select().from(furniture).where(eq(furniture.storeId, storeId));
+  let furn = allFurn.find((f) => INTEGRATION_FURNITURE_NAMES.includes(f.name));
 
-  let furn = existingFurn[0];
   if (!furn) {
     const furnitureCode = await identifierGenerator.generateFurnitureCode(storeCode);
     const [created] = await db
@@ -86,20 +88,17 @@ async function ensureDiscoveryKit(storeId: string, storeCode: string) {
       .values({
         furnitureCode,
         storeId,
-        name: "Home Assistant",
-        description: "Dispositivos descobertos automaticamente via Home Assistant",
+        name: INTEGRATION_FURNITURE_NAMES[0],
+        description: "Dispositivos sincronizados automaticamente a partir do hub de integração",
         status: "ONLINE",
       })
       .returning();
     furn = created;
   }
 
-  const existingKits = await db
-    .select()
-    .from(kits)
-    .where(and(eq(kits.furnitureId, furn.id), eq(kits.name, "Dispositivos descobertos")));
+  const kitRows = await db.select().from(kits).where(eq(kits.furnitureId, furn.id));
+  let kit = kitRows.find((k) => k.name === INTEGRATION_KIT_NAME || k.name === LEGACY_KIT_NAME);
 
-  let kit = existingKits[0];
   if (!kit) {
     const kitCode = await identifierGenerator.generateKitCode(storeCode);
     const [created] = await db
@@ -107,9 +106,9 @@ async function ensureDiscoveryKit(storeId: string, storeCode: string) {
       .values({
         kitCode,
         furnitureId: furn.id,
-        name: "Dispositivos descobertos",
-        description: "Sincronizado a partir da API do Home Assistant",
-        kitType: "ha_discovered",
+        name: INTEGRATION_KIT_NAME,
+        description: "Inventário sincronizado a partir do hub de integração",
+        kitType: "integration_discovered",
         status: "ONLINE",
       })
       .returning();
@@ -139,7 +138,7 @@ async function ensureStoreGateway(storeId: string, haInstanceId: string) {
     .insert(gateways)
     .values({
       hardwareId,
-      name: "HA Gateway",
+      name: INTEGRATION_GATEWAY_NAME,
       storeId,
       homeAssistantInstanceId: haInstanceId,
       status: "ONLINE",
@@ -228,6 +227,7 @@ export async function discoverDevicesFromHomeAssistant(
         .set({
           name: friendlyName,
           status,
+          heartbeatSource: "integration",
           lastSeenAt: new Date(),
           configuration: JSON.stringify(configuration),
           gatewayId: gateway.id,
@@ -276,6 +276,7 @@ export async function discoverDevicesFromHomeAssistant(
         .set({
           name: friendlyName,
           status,
+          heartbeatSource: "integration",
           lastSeenAt: new Date(),
           configuration: JSON.stringify(configuration),
           gatewayId: gateway.id,
@@ -322,6 +323,7 @@ export async function discoverDevicesFromHomeAssistant(
         homeAssistantEntityId: state.entity_id,
         configuration: JSON.stringify(configuration),
         capabilities: JSON.stringify(capabilitiesForDomain(domain)),
+        heartbeatSource: "integration",
         lastSeenAt: new Date(),
       })
       .returning();

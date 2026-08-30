@@ -274,12 +274,18 @@ export const devices = pgTable(
       .references(() => kits.id, { onDelete: "cascade" }),
     gatewayId: uuid("gateway_id").references(() => gateways.id, { onDelete: "set null" }),
     name: text("name").notNull(),
+    description: text("description"),
+    imageUrl: text("image_url"),
+    address: text("address"),
+    city: text("city"),
+    country: text("country"),
     deviceType: text("device_type").notNull().default("OTHER"),
     manufacturer: text("manufacturer"),
     model: text("model"),
     serialNumber: text("serial_number"),
     status: text("status").notNull().default("UNKNOWN"),
     homeAssistantEntityId: text("home_assistant_entity_id"),
+    heartbeatSource: text("heartbeat_source").notNull().default("mock"),
     configuration: text("configuration").notNull().default("{}"),
     capabilities: text("capabilities").notNull().default("[]"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
@@ -291,6 +297,36 @@ export const devices = pgTable(
     deviceCodeIdx: uniqueIndex("devices_device_code_uidx").on(t.deviceCode),
     kitIdIdx: index("devices_kit_id_idx").on(t.kitId),
     gatewayIdIdx: index("devices_gateway_id_idx").on(t.gatewayId),
+    cityIdx: index("devices_city_idx").on(t.city),
+    countryIdx: index("devices_country_idx").on(t.country),
+  }),
+);
+
+export const TICKET_STATUSES = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"] as const;
+export type TicketStatus = (typeof TICKET_STATUSES)[number];
+
+export const TICKET_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
+export type TicketPriority = (typeof TICKET_PRIORITIES)[number];
+
+export const deviceTickets = pgTable(
+  "device_tickets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    deviceId: uuid("device_id")
+      .notNull()
+      .references(() => devices.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    description: text("description"),
+    status: text("status").notNull().default("OPEN"),
+    priority: text("priority").notNull().default("MEDIUM"),
+    createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    assignedToUserId: uuid("assigned_to_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    deviceIdIdx: index("device_tickets_device_id_idx").on(t.deviceId),
+    statusIdx: index("device_tickets_status_idx").on(t.status),
   }),
 );
 
