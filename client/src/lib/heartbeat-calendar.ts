@@ -39,6 +39,7 @@ function worstLevel(a: HeartbeatLevel | null, b: HeartbeatLevel): HeartbeatLevel
 export function buildHeartbeatCalendar(
   buckets: HeartbeatHistoryBucket[],
   days = 14,
+  endDate = new Date(),
 ): HeartbeatCalendarDay[] {
   const levelByLocalHour = new Map<string, HeartbeatLevel>();
   for (const bucket of buckets) {
@@ -48,27 +49,90 @@ export function buildHeartbeatCalendar(
   }
 
   const grid: HeartbeatCalendarDay[] = [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
 
   for (let dayOffset = days - 1; dayOffset >= 0; dayOffset -= 1) {
-    const date = new Date(today);
-    date.setDate(today.getDate() - dayOffset);
-    const hours: HeartbeatCalendarHour[] = [];
-
-    for (let hour = 0; hour < 24; hour += 1) {
-      const at = new Date(date);
-      at.setHours(hour, 0, 0, 0);
-      hours.push({
-        level: levelByLocalHour.get(localHourKey(at)) ?? null,
-        at,
-      });
-    }
-
-    grid.push({ date, hours });
+    const date = new Date(end);
+    date.setDate(end.getDate() - dayOffset);
+    grid.push(buildDayFromMap(date, levelByLocalHour));
   }
 
   return grid;
+}
+
+function buildDayFromMap(
+  date: Date,
+  levelByLocalHour: Map<string, HeartbeatLevel>,
+): HeartbeatCalendarDay {
+  const hours: HeartbeatCalendarHour[] = [];
+  for (let hour = 0; hour < 24; hour += 1) {
+    const at = new Date(date);
+    at.setHours(hour, 0, 0, 0);
+    hours.push({
+      level: levelByLocalHour.get(localHourKey(at)) ?? null,
+      at,
+    });
+  }
+  return { date, hours };
+}
+
+/** Monday-based week start (locale-friendly for PT/EU). */
+export function startOfWeek(date: Date, weekStartsOn: 0 | 1 = 1): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  const diff = weekStartsOn === 1 ? (day === 0 ? -6 : 1 - day) : -day;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+
+export function buildHeartbeatWeek(
+  buckets: HeartbeatHistoryBucket[],
+  weekStart: Date,
+): HeartbeatCalendarDay[] {
+  const levelByLocalHour = new Map<string, HeartbeatLevel>();
+  for (const bucket of buckets) {
+    const at = new Date(bucket.hourStart);
+    const key = localHourKey(at);
+    levelByLocalHour.set(key, worstLevel(levelByLocalHour.get(key) ?? null, bucket.level));
+  }
+
+  const start = new Date(weekStart);
+  start.setHours(0, 0, 0, 0);
+  const days: HeartbeatCalendarDay[] = [];
+  for (let i = 0; i < 7; i += 1) {
+    const date = new Date(start);
+    date.setDate(start.getDate() + i);
+    days.push(buildDayFromMap(date, levelByLocalHour));
+  }
+  return days;
+}
+
+export function summarizeDay(hours: HeartbeatCalendarHour[]): HeartbeatLevel | null {
+  let summary: HeartbeatLevel | null = null;
+  for (const hour of hours) {
+    if (hour.level) {
+      summary = summary ? worstLevel(summary, hour.level) : hour.level;
+    }
+  }
+  return summary;
+}
+
+export function formatWeekRange(weekStart: Date, locale?: string): string {
+  const end = new Date(weekStart);
+  end.setDate(weekStart.getDate() + 6);
+  const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" };
+  const startStr = weekStart.toLocaleDateString(locale, opts);
+  const endStr = end.toLocaleDateString(locale, {
+    ...opts,
+    year: weekStart.getFullYear() === end.getFullYear() ? undefined : "numeric",
+  });
+  const year = end.getFullYear();
+  if (weekStart.getMonth() === end.getMonth()) {
+    return `${weekStart.getDate()} – ${end.toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" })}`;
+  }
+  return `${startStr} – ${endStr} ${year}`;
 }
 
 export function heartbeatLevelLabel(
