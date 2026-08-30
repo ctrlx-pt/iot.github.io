@@ -189,7 +189,8 @@ export default function DeviceDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start gap-4 min-w-0">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex items-start gap-4 min-w-0 flex-1">
         {device.imageUrl ? (
           <button
             type="button"
@@ -241,6 +242,23 @@ export default function DeviceDetailPage() {
             </p>
           )}
         </div>
+        </div>
+
+        <div className="w-full shrink-0 xl:w-[min(100%,380px)]">
+          <DeviceHeartbeatCalendar
+            deviceId={deviceId}
+            source={heartbeatSource}
+            lastSeen={lastSeen}
+            compact
+            onRefresh={() => {
+              refetchHeartbeat();
+              queryClient.invalidateQueries({
+                queryKey: ["/api/devices", deviceId, "heartbeat", "history"],
+              });
+            }}
+            refreshing={heartbeatFetching}
+          />
+        </div>
       </div>
 
       {lightboxImageUrl ? (
@@ -254,21 +272,6 @@ export default function DeviceDetailPage() {
           </DialogContent>
         </Dialog>
       ) : null}
-
-      <DeviceHeartbeatCalendar
-        deviceId={deviceId}
-        source={heartbeatSource}
-        lastSeen={lastSeen}
-        onRefresh={() => {
-          refetchHeartbeat();
-          queryClient.invalidateQueries({
-            queryKey: ["/api/devices", deviceId, "heartbeat", "history"],
-          });
-        }}
-        refreshing={heartbeatFetching}
-      />
-
-      <DeviceIntegrationsPanel deviceId={deviceId} />
 
       {canEditDevice ? (
         <div className="rounded-lg border p-4 space-y-4">
@@ -459,6 +462,8 @@ export default function DeviceDetailPage() {
           )}
         </div>
       </div>
+
+      <DeviceIntegrationsPanel deviceId={deviceId} />
     </div>
   );
 }

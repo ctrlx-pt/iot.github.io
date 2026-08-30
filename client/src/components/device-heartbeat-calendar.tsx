@@ -24,6 +24,7 @@ type Props = {
   onRefresh?: () => void;
   refreshing?: boolean;
   days?: number;
+  compact?: boolean;
 };
 
 function formatDayLabel(date: Date, tr: ReturnType<typeof useTr>): string {
@@ -57,9 +58,11 @@ export function DeviceHeartbeatCalendar({
   lastSeen,
   onRefresh,
   refreshing,
-  days = 14,
+  days: daysProp,
+  compact = false,
 }: Props) {
   const tr = useTr();
+  const days = daysProp ?? (compact ? 7 : 14);
 
   const { data: history, isLoading } = useQuery({
     queryKey: ["/api/devices", deviceId, "heartbeat", "history", days],
@@ -73,26 +76,30 @@ export function DeviceHeartbeatCalendar({
   });
 
   const calendar = buildHeartbeatCalendar(history?.buckets ?? [], days);
-  const hourMarkers = [0, 6, 12, 18, 23];
+  const hourMarkers = compact ? [0, 12, 23] : [0, 6, 12, 18, 23];
+  const dayCol = compact ? "52px" : "88px";
+  const dotSize = compact ? "h-2 w-2" : "h-3 w-3";
 
   return (
-    <div className="rounded-lg border p-4 space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 font-medium">
-            <HeartPulse className="h-4 w-4 text-emerald-600" />
+    <div className={cn("rounded-lg border space-y-3", compact ? "p-3" : "p-4 space-y-4")}>
+      <div className={cn("flex gap-2", compact ? "flex-col" : "flex-wrap items-start justify-between gap-3")}>
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-1.5 font-medium text-sm">
+            <HeartPulse className="h-3.5 w-3.5 text-emerald-600" />
             {tr({ en: "Heartbeat", pt: "Heartbeat", es: "Latido", fr: "Heartbeat" })}
           </div>
-          <p className="text-xs text-muted-foreground">
-            {tr({
-              en: "Hourly status for the last {days} days",
-              pt: "Estado horário dos últimos {days} dias",
-              es: "Estado horario de los últimos {days} días",
-              fr: "État horaire des {days} derniers jours",
-            }).replace("{days}", String(days))}
-          </p>
+          {!compact ? (
+            <p className="text-xs text-muted-foreground">
+              {tr({
+                en: "Hourly status for the last {days} days",
+                pt: "Estado horário dos últimos {days} dias",
+                es: "Estado horario de los últimos {days} días",
+                fr: "État horaire des {days} derniers jours",
+              }).replace("{days}", String(days))}
+            </p>
+          ) : null}
         </div>
-        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+        <div className={cn("flex flex-wrap items-center gap-2 text-muted-foreground", compact ? "text-[10px]" : "text-xs gap-3")}>
           {source ? (
             <span>
               {tr({ en: "Source", pt: "Origem", es: "Origen", fr: "Source" })}:{" "}
@@ -109,14 +116,14 @@ export function DeviceHeartbeatCalendar({
             </span>
           ) : null}
           {lastSeen ? (
-            <span>
+            <span className={compact ? "block w-full" : undefined}>
               {tr({ en: "Last seen", pt: "Última vez", es: "Última vez", fr: "Dernière vue" })}:{" "}
-              {new Date(lastSeen).toLocaleString()}
+              {new Date(lastSeen).toLocaleString(undefined, compact ? { dateStyle: "short", timeStyle: "short" } : undefined)}
             </span>
           ) : null}
           {onRefresh ? (
-            <Button size="sm" variant="outline" disabled={refreshing} onClick={onRefresh}>
-              <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", refreshing && "animate-spin")} />
+            <Button size="sm" variant="outline" className={compact ? "h-7 px-2 text-xs" : undefined} disabled={refreshing} onClick={onRefresh}>
+              <RefreshCw className={cn("h-3 w-3", !compact && "h-3.5 w-3.5 mr-1.5", refreshing && "animate-spin", compact && "mr-1")} />
               {tr({ en: "Refresh", pt: "Atualizar", es: "Actualizar", fr: "Actualiser" })}
             </Button>
           ) : null}
@@ -124,18 +131,21 @@ export function DeviceHeartbeatCalendar({
       </div>
 
       <div className="overflow-x-auto">
-        <div className="min-w-[640px] space-y-1">
-          <div className="grid grid-cols-[88px_repeat(24,minmax(0,1fr))] gap-1 items-end pl-0.5">
+        <div className={cn("space-y-0.5", compact ? "min-w-[280px]" : "min-w-[640px] space-y-1")}>
+          <div
+            className="grid gap-0.5 items-end pl-0.5"
+            style={{ gridTemplateColumns: `${dayCol} repeat(24, minmax(0, 1fr))` }}
+          >
             <div />
             {Array.from({ length: 24 }, (_, hour) => (
-              <div key={hour} className="text-[10px] text-muted-foreground text-center leading-none">
+              <div key={hour} className="text-[9px] text-muted-foreground text-center leading-none">
                 {hourMarkers.includes(hour) ? `${hour}h` : ""}
               </div>
             ))}
           </div>
 
           {isLoading ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">
+            <p className={cn("text-muted-foreground text-center", compact ? "text-xs py-3" : "text-sm py-6")}>
               {tr({ en: "Loading history…", pt: "A carregar histórico…", es: "Cargando historial…", fr: "Chargement…" })}
             </p>
           ) : (
@@ -143,9 +153,10 @@ export function DeviceHeartbeatCalendar({
               {calendar.map((day) => (
                 <div
                   key={day.date.toISOString()}
-                  className="grid grid-cols-[88px_repeat(24,minmax(0,1fr))] gap-1 items-center"
+                  className="grid gap-0.5 items-center"
+                  style={{ gridTemplateColumns: `${dayCol} repeat(24, minmax(0, 1fr))` }}
                 >
-                  <div className="text-xs text-muted-foreground pr-2 truncate">
+                  <div className={cn("text-muted-foreground pr-1 truncate", compact ? "text-[10px]" : "text-xs pr-2")}>
                     {formatDayLabel(day.date, tr)}
                   </div>
                   {day.hours.map((hour) => (
@@ -153,7 +164,8 @@ export function DeviceHeartbeatCalendar({
                       <TooltipTrigger asChild>
                         <div
                           className={cn(
-                            "mx-auto h-3 w-3 rounded-full ring-1 ring-border/40",
+                            "mx-auto rounded-full ring-1 ring-border/40",
+                            dotSize,
                             heartbeatLevelClass(hour.level),
                           )}
                           aria-label={heartbeatLevelLabel(hour.level, tr)}
@@ -180,28 +192,27 @@ export function DeviceHeartbeatCalendar({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-4 pt-1">
+      <div className={cn("flex flex-wrap pt-0.5", compact ? "gap-2" : "gap-4 pt-1")}>
         <LegendDot
           level="ok"
           label={tr({ en: "All good", pt: "Tudo OK", es: "Todo bien", fr: "Tout va bien" })}
         />
         <LegendDot
           level="degraded"
-          label={tr({
-            en: "Issue detected",
-            pt: "Problema detetado",
-            es: "Problema detectado",
-            fr: "Problème détecté",
-          })}
+          label={compact
+            ? tr({ en: "Issue", pt: "Problema", es: "Problema", fr: "Problème" })
+            : tr({ en: "Issue detected", pt: "Problema detetado", es: "Problema detectado", fr: "Problème détecté" })}
         />
         <LegendDot
           level="offline"
           label={tr({ en: "Offline", pt: "Offline", es: "Desconectado", fr: "Hors ligne" })}
         />
-        <LegendDot
-          level={null}
-          label={tr({ en: "No data", pt: "Sem dados", es: "Sin datos", fr: "Aucune donnée" })}
-        />
+        {!compact ? (
+          <LegendDot
+            level={null}
+            label={tr({ en: "No data", pt: "Sem dados", es: "Sin datos", fr: "Aucune donnée" })}
+          />
+        ) : null}
       </div>
     </div>
   );
