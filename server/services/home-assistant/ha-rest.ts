@@ -22,6 +22,8 @@ export interface IHomeAssistantService {
     entityId: string,
     data?: Record<string, unknown>,
   ): Promise<void>;
+  listAutomations(): Promise<HaState[]>;
+  triggerAutomation(entityId: string): Promise<void>;
 }
 
 export class HomeAssistantRestService implements IHomeAssistantService {
@@ -105,6 +107,17 @@ export class HomeAssistantRestService implements IHomeAssistantService {
     await this.request("POST", `/api/services/${domain}/${service}`, {
       entity_id: entityId,
       ...data,
+    });
+  }
+
+  async listAutomations(): Promise<HaState[]> {
+    const states = await this.getStates();
+    return states.filter((s) => s.entity_id.startsWith("automation."));
+  }
+
+  async triggerAutomation(entityId: string): Promise<void> {
+    await this.request("POST", "/api/services/automation/trigger", {
+      entity_id: entityId,
     });
   }
 

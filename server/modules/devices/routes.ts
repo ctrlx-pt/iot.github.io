@@ -12,6 +12,10 @@ import {
   recordManualHeartbeat,
   refreshDeviceHeartbeat,
 } from "../../services/devices/heartbeat";
+import {
+  getDeviceIntegrations,
+  listDevicesForStore,
+} from "../../services/devices/integrations";
 import { getDeviceScoped, getKitScoped, getStoreForUser } from "../../services/tenant-scope";
 import { broadcastDeviceState } from "../../services/realtime";
 import { createDeviceTicketsRouter } from "../device-tickets/routes";
@@ -51,7 +55,12 @@ export function createDevicesRouter(): Router {
     "/",
     asyncHandler(async (req, res) => {
       const kitId = typeof req.query.kitId === "string" ? req.query.kitId : undefined;
-      if (!kitId) return fail(res, 400, "kitId query required", "BAD_REQUEST");
+      const storeId = typeof req.query.storeId === "string" ? req.query.storeId : undefined;
+      if (storeId) {
+        const rows = await listDevicesForStore(storeId, req.user!);
+        return ok(res, rows);
+      }
+      if (!kitId) return fail(res, 400, "kitId or storeId query required", "BAD_REQUEST");
       await getKitScoped(req.user!, kitId);
       const db = getDb();
       const rows = await db
@@ -60,6 +69,14 @@ export function createDevicesRouter(): Router {
         .where(eq(devices.kitId, kitId))
         .orderBy(desc(devices.createdAt));
       return ok(res, rows);
+    }),
+  );
+
+  router.get(
+    "/:id/integrations",
+    asyncHandler(async (req, res) => {
+      const data = await getDeviceIntegrations(req.params.id, req.user!);
+      return ok(res, data);
     }),
   );
 

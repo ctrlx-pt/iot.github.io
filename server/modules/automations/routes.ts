@@ -35,7 +35,17 @@ export function createAutomationsRouter(): Router {
                 .orderBy(desc(automations.createdAt));
       return ok(
         res,
-        rows.map((r) => ({ ...r, configuration: JSON.parse(r.configuration || "{}") })),
+        rows
+          .map((r) => ({ ...r, configuration: JSON.parse(r.configuration || "{}") }))
+          .filter((r) => {
+            const deviceId =
+              typeof req.query.deviceId === "string" ? req.query.deviceId : undefined;
+            if (!deviceId) return true;
+            if (r.scopeType === "Device" && r.scopeId === deviceId) return true;
+            const actions = (r.configuration as { actions?: Array<{ deviceId?: string }> })
+              .actions;
+            return (actions || []).some((a) => a.deviceId === deviceId);
+          }),
       );
     }),
   );

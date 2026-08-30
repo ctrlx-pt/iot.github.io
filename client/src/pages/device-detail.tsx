@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/select";
 import { compressImageToDataUrl, MAX_SOURCE_IMAGE_BYTES } from "@/lib/compress-image";
 import { DeviceHeartbeatCalendar } from "@/components/device-heartbeat-calendar";
+import { DeviceIntegrationsPanel } from "@/components/device-integrations-panel";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { apiJson, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useTr } from "@/lib/tr";
@@ -53,6 +55,7 @@ export default function DeviceDetailPage() {
   const [ticketTitle, setTicketTitle] = useState("");
   const [ticketDesc, setTicketDesc] = useState("");
   const [compressing, setCompressing] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   const { data: device } = useQuery<any>({
     queryKey: ["/api/devices", deviceId],
@@ -182,16 +185,29 @@ export default function DeviceDetailPage() {
   const { Icon } = visual;
   const heartbeatSource = heartbeat?.source || device.heartbeatSource || "mock";
   const lastSeen = heartbeat?.lastSeenAt || device.lastSeenAt;
+  const lightboxImageUrl = form.imageUrl || device.imageUrl;
 
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-4 min-w-0">
         {device.imageUrl ? (
-          <img
-            src={device.imageUrl}
-            alt={device.name}
-            className="h-28 w-28 shrink-0 rounded-xl object-cover ring-1 ring-border"
-          />
+          <button
+            type="button"
+            onClick={() => setPhotoOpen(true)}
+            className="shrink-0 rounded-xl ring-1 ring-border overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={tr({
+              en: "View photo",
+              pt: "Ver foto",
+              es: "Ver foto",
+              fr: "Voir la photo",
+            })}
+          >
+            <img
+              src={device.imageUrl}
+              alt={device.name}
+              className="h-28 w-28 object-cover cursor-zoom-in"
+            />
+          </button>
         ) : (
           <div
             className={cn(
@@ -227,6 +243,18 @@ export default function DeviceDetailPage() {
         </div>
       </div>
 
+      {lightboxImageUrl ? (
+        <Dialog open={photoOpen} onOpenChange={setPhotoOpen}>
+          <DialogContent className="max-w-5xl border-none bg-transparent p-2 shadow-none sm:p-4">
+            <img
+              src={lightboxImageUrl}
+              alt={device.name}
+              className="max-h-[85vh] w-full rounded-lg object-contain"
+            />
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
       <DeviceHeartbeatCalendar
         deviceId={deviceId}
         source={heartbeatSource}
@@ -239,6 +267,8 @@ export default function DeviceDetailPage() {
         }}
         refreshing={heartbeatFetching}
       />
+
+      <DeviceIntegrationsPanel deviceId={deviceId} />
 
       {canEditDevice ? (
         <div className="rounded-lg border p-4 space-y-4">
@@ -286,11 +316,17 @@ export default function DeviceDetailPage() {
                       })}
                 </p>
                 {form.imageUrl ? (
-                  <img
-                    src={form.imageUrl}
-                    alt=""
-                    className="h-20 w-20 rounded-md object-cover ring-1 ring-border"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setPhotoOpen(true)}
+                    className="rounded-md ring-1 ring-border overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <img
+                      src={form.imageUrl}
+                      alt=""
+                      className="h-20 w-20 object-cover cursor-zoom-in"
+                    />
+                  </button>
                 ) : null}
                 <Input
                   placeholder="https://…"

@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { apiUrl, getToken, clearToken } from "@/lib/auth";
+import { apiUrl, getToken, logoutRedirect } from "@/lib/auth";
 import { Loader2, User, Lock, Eye, EyeOff, LogOut } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "@/lib/i18n";
@@ -22,7 +21,6 @@ interface UserProfile {
 }
 
 export default function Profile() {
-  const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const { language } = useTranslation() as { language: "pt" | "en" };
   const tr = (pt: string, en: string) => (language === "pt" ? pt : en);
@@ -139,9 +137,8 @@ export default function Profile() {
   }
 
   function handleLogout() {
-    clearToken();
     queryClient.clear();
-    navigate("/login");
+    logoutRedirect();
   }
 
   const getInitials = (name: string) => name.slice(0, 2).toUpperCase();

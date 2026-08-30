@@ -38,7 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { getToken, apiUrl, clearToken } from "@/lib/auth";
+import { getToken, apiUrl, logoutRedirect } from "@/lib/auth";
 import { unwrapApiData } from "@/lib/queryClient";
 import { useTranslation } from "@/lib/i18n";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -56,7 +56,7 @@ type MeResponse = {
 const comingSoon = false;
 
 export function AppSidebar() {
-  const [location, navigate] = useLocation();
+  const [location] = useLocation();
   const queryClient = useQueryClient();
   const { language } = useTranslation();
   const tr = (pt: string, en: string) => (language === "pt" ? pt : en);
@@ -91,9 +91,8 @@ export function AppSidebar() {
     } catch {
       /* ignore */
     }
-    clearToken();
     queryClient.clear();
-    navigate("/login");
+    logoutRedirect();
   };
 
   const initials = (user?.username || "?").slice(0, 2).toUpperCase();
@@ -109,7 +108,7 @@ export function AppSidebar() {
 
   const ops = [
     { href: "/home-assistant", label: tr("Hub de integração", "Integration hub"), icon: Shield, soon: false },
-    { href: "/automations", label: tr("Automações", "Automations"), icon: Clock, soon: false },
+    { href: "/automations", label: tr("Automações HA", "HA Automations"), icon: Clock, soon: false },
     { href: "/monitoring", label: tr("Monitorização", "Monitoring"), icon: Activity, soon: false },
     { href: "/logs", label: tr("Logs", "Logs"), icon: History, soon: false },
     ...(user?.isSuperAdmin || canManageCompanyUsers

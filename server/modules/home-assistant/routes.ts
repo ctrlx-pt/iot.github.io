@@ -8,6 +8,10 @@ import { asyncHandler, fail, ok } from "../../middleware/errors";
 import { writeAuditLog } from "../../services/audit";
 import { encryptSecret } from "../../services/crypto/secrets";
 import { discoverDevicesFromHomeAssistant } from "../../services/home-assistant/discover";
+import {
+  listHomeAssistantAutomations,
+  triggerHomeAssistantAutomation,
+} from "../../services/home-assistant/automations";
 import { getDeviceScoped, getStoreForUser } from "../../services/tenant-scope";
 import { normalizeHomeAssistantBaseUrl } from "../../../shared/ha-url";
 
@@ -189,6 +193,60 @@ export function createHomeAssistantRouter(): Router {
         .where(eq(homeAssistantInstances.id, inst.id))
         .returning();
       return ok(res, sanitizeHa(row));
+    }),
+  );
+
+  router.get(
+    "/:id/automations",
+    asyncHandler(async (req, res) => {
+      const db = getDb();
+      const rows = await db
+        .select()
+        .from(homeAssistantInstances)
+        .where(eq(homeAssistantInstances.id, req.params.id))
+        .limit(1);
+      const inst = rows[0];
+      if (!inst) return fail(res, 404, "Not found", "NOT_FOUND");
+      await getStoreForUser(req.user!, inst.storeId);
+      try {
+        const automations = await listHomeAssistantAutomations(inst.id);
+        return ok(res, {
+          instance: sanitizeHa(inst),
+          editorUrl: `${inst.url.replace(/\/+$/, "")}/config/automation/dashboard`,
+          automations,
+        });
+      } catch (err: any) {
+        return fail(res, 502, err?.message || "Failed to load HA automations", "HA_UNAVAILABLE");
+      }
+    }),
+  );
+
+  router.post(
+    "/:id/automations/trigger",
+    asyncHandler(async (req, res) => {
+      const entityId = typeof req.body?.entityId === "string" ? req.body.entityId : "";
+      if (!entityId) return fail(res, 400, "entityId required", "BAD_REQUEST");
+      const db = getDb();
+      const rows = await db
+        .select()
+        .from(homeAssistantInstances)
+        .where(eq(homeAssistantInstances.id, req.params.id))
+        .limit(1);
+      const inst = rows[0];
+      if (!inst) return fail(res, 404, "Not found", "NOT_FOUND");
+      const store = await getStoreForUser(req.user!, inst.storeId);
+      if (!req.user!.isSuperAdmin) {
+        const m = getMembership(req.user!, store.companyId);
+        if (!m || !roleAtLeast(m.role, "Operator")) {
+          return fail(res, 403, "Operator required", "FORBIDDEN");
+        }
+      }
+      try {
+        await triggerHomeAssistantAutomation(inst.id, entityId);
+        return ok(res, { entityId });
+      } catch (err: any) {
+        return fail(res, 502, err?.message || "Failed to trigger automation", "HA_UNAVAILABLE");
+      }
     }),
   );
 
