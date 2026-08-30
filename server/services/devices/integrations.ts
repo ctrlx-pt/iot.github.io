@@ -10,8 +10,8 @@ import {
 import type { AuthUser } from "../../middleware/auth";
 import { getDeviceScoped, getStoreForUser } from "../tenant-scope";
 import {
-  listHomeAssistantAutomations,
-  type HaAutomationView,
+  listAutomationsForInstance,
+  type AutomationView,
 } from "../home-assistant/automations";
 
 function sanitizeHaInstance(row: typeof homeAssistantInstances.$inferSelect) {
@@ -30,8 +30,7 @@ export async function getDeviceIntegrations(deviceId: string, user: AuthUser) {
     .where(eq(homeAssistantEntities.deviceId, deviceId));
 
   let instance: ReturnType<typeof sanitizeHaInstance> | null = null;
-  let haAutomations: HaAutomationView[] = [];
-  let automationsEditorUrl: string | null = null;
+  let haAutomations: AutomationView[] = [];
 
   const instanceId =
     entityRows[0]?.homeAssistantInstanceId ??
@@ -53,14 +52,11 @@ export async function getDeviceIntegrations(deviceId: string, user: AuthUser) {
       .limit(1);
     instance = instRows[0] ? sanitizeHaInstance(instRows[0]) : null;
     if (instance) {
-      automationsEditorUrl = `${instance.url.replace(/\/+$/, "")}/config/automation/dashboard`;
       try {
-        const all = await listHomeAssistantAutomations(instanceId);
+        const all = await listAutomationsForInstance(instanceId);
         const deviceEntityId = device.homeAssistantEntityId ?? entityRows[0]?.entityId ?? null;
         haAutomations = deviceEntityId
-          ? all.filter((a) =>
-              JSON.stringify(a).toLowerCase().includes(deviceEntityId.toLowerCase()),
-            )
+          ? all.filter((a) => a.deviceEntityId === deviceEntityId)
           : all;
       } catch {
         haAutomations = [];
@@ -76,7 +72,6 @@ export async function getDeviceIntegrations(deviceId: string, user: AuthUser) {
       entities: entityRows,
       entityId: device.homeAssistantEntityId ?? entityRows[0]?.entityId ?? null,
       automations: haAutomations,
-      automationsEditorUrl,
     },
   };
 }

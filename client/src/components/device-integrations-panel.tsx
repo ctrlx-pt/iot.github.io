@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Clock, ExternalLink, Play, Plug, RefreshCw } from "lucide-react";
+import { Clock, Play, Plug, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { apiJson, queryClient } from "@/lib/queryClient";
@@ -105,8 +105,8 @@ export function DeviceIntegrationsPanel({ deviceId }: Props) {
         ) : (
           <p className="text-muted-foreground">
             {tr({
-              en: "Not linked to Home Assistant. Connect the store hub and sync devices.",
-              pt: "Sem ligação à Home Assistant. Ligue o hub da loja e sincronize dispositivos.",
+              en: "Not linked to the integration hub. Connect the store hub and sync devices.",
+              pt: "Sem ligação ao hub de integração. Ligue o hub da loja e sincronize dispositivos.",
             })}
           </p>
         )}
@@ -116,29 +116,26 @@ export function DeviceIntegrationsPanel({ deviceId }: Props) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-sm font-medium">
             <Clock className="h-4 w-4" />
-            {tr({ en: "Home Assistant automations", pt: "Automações Home Assistant" })}
+            {tr({ en: "Automations", pt: "Automações" })}
           </div>
-          {ha?.automationsEditorUrl ? (
-            <Button asChild size="sm" variant="outline">
-              <a href={ha.automationsEditorUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                {tr({ en: "Create in HA", pt: "Criar na HA" })}
-              </a>
-            </Button>
-          ) : null}
+          <Button asChild size="sm" variant="outline">
+            <Link href="/automations">
+              {tr({ en: "Manage", pt: "Gerir" })}
+            </Link>
+          </Button>
         </div>
         <p className="text-xs text-muted-foreground">
           {tr({
-            en: "Automations are managed in Home Assistant. Below are automations that may reference this device.",
-            pt: "As automações são geridas na Home Assistant. Abaixo, automações que podem referenciar este dispositivo.",
+            en: "Automations that target this device.",
+            pt: "Automações que afetam este dispositivo.",
           })}
         </p>
 
         {automations.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {tr({
-              en: "No related automations found. Create them in Home Assistant.",
-              pt: "Nenhuma automação relacionada. Crie-as na Home Assistant.",
+              en: "No automations for this device yet.",
+              pt: "Ainda sem automações para este dispositivo.",
             })}
           </p>
         ) : (
@@ -147,7 +144,11 @@ export function DeviceIntegrationsPanel({ deviceId }: Props) {
               <div key={a.entityId} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
                 <div className="min-w-0">
                   <div className="font-medium truncate">{a.name}</div>
-                  <div className="text-xs text-muted-foreground truncate">{a.entityId}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {a.time
+                      ? `${tr({ en: "Daily at", pt: "Diariamente às" })} ${a.time}`
+                      : a.entityId}
+                  </div>
                 </div>
                 {ha?.instance ? (
                   <Button

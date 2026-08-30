@@ -108,7 +108,7 @@ export function AppSidebar() {
 
   const ops = [
     { href: "/home-assistant", label: tr("Hub de integração", "Integration hub"), icon: Shield, soon: false },
-    { href: "/automations", label: tr("Automações HA", "HA Automations"), icon: Clock, soon: false },
+    { href: "/automations", label: tr("Automações", "Automations"), icon: Clock, soon: false },
     { href: "/monitoring", label: tr("Monitorização", "Monitoring"), icon: Activity, soon: false },
     { href: "/logs", label: tr("Logs", "Logs"), icon: History, soon: false },
     ...(user?.isSuperAdmin || canManageCompanyUsers

@@ -24,6 +24,9 @@ export interface IHomeAssistantService {
   ): Promise<void>;
   listAutomations(): Promise<HaState[]>;
   triggerAutomation(entityId: string): Promise<void>;
+  getAutomationConfigs(): Promise<Array<Record<string, unknown>>>;
+  saveAutomationConfig(configId: string, config: Record<string, unknown>): Promise<void>;
+  deleteAutomationConfig(configId: string): Promise<void>;
 }
 
 export class HomeAssistantRestService implements IHomeAssistantService {
@@ -119,6 +122,26 @@ export class HomeAssistantRestService implements IHomeAssistantService {
     await this.request("POST", "/api/services/automation/trigger", {
       entity_id: entityId,
     });
+  }
+
+  async getAutomationConfigs(): Promise<Array<Record<string, unknown>>> {
+    const result = await this.request("GET", "/api/config/automation/config");
+    return Array.isArray(result) ? result : [];
+  }
+
+  async saveAutomationConfig(configId: string, config: Record<string, unknown>): Promise<void> {
+    await this.request(
+      "POST",
+      `/api/config/automation/config/${encodeURIComponent(configId)}`,
+      config,
+    );
+  }
+
+  async deleteAutomationConfig(configId: string): Promise<void> {
+    await this.request(
+      "DELETE",
+      `/api/config/automation/config/${encodeURIComponent(configId)}`,
+    );
   }
 
   async turnOn(entityId: string, data?: Record<string, unknown>): Promise<void> {

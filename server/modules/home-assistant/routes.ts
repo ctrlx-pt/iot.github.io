@@ -9,8 +9,12 @@ import { writeAuditLog } from "../../services/audit";
 import { encryptSecret } from "../../services/crypto/secrets";
 import { discoverDevicesFromHomeAssistant } from "../../services/home-assistant/discover";
 import {
-  listHomeAssistantAutomations,
-  triggerHomeAssistantAutomation,
+  createAutomationForInstance,
+  deleteAutomationForInstance,
+  listAutomationsForInstance,
+  setAutomationEnabled,
+  triggerAutomationForInstance,
+  updateAutomationForInstance,
 } from "../../services/home-assistant/automations";
 import { getDeviceScoped, getStoreForUser } from "../../services/tenant-scope";
 import { normalizeHomeAssistantBaseUrl } from "../../../shared/ha-url";
@@ -209,14 +213,108 @@ export function createHomeAssistantRouter(): Router {
       if (!inst) return fail(res, 404, "Not found", "NOT_FOUND");
       await getStoreForUser(req.user!, inst.storeId);
       try {
-        const automations = await listHomeAssistantAutomations(inst.id);
-        return ok(res, {
-          instance: sanitizeHa(inst),
-          editorUrl: `${inst.url.replace(/\/+$/, "")}/config/automation/dashboard`,
-          automations,
-        });
+        const automations = await listAutomationsForInstance(inst.id);
+        return ok(res, { instance: sanitizeHa(inst), automations });
       } catch (err: any) {
-        return fail(res, 502, err?.message || "Failed to load HA automations", "HA_UNAVAILABLE");
+        return fail(res, 502, err?.message || "Failed to load automations", "INTEGRATION_UNAVAILABLE");
+      }
+    }),
+  );
+
+  router.post(
+    "/:id/automations",
+    asyncHandler(async (req, res) => {
+      const parsed = z
+        .object({
+          name: z.string().min(1),
+          time: z.string().min(1),
+          deviceEntityId: z.string().min(1),
+          action: z.enum(["on", "off"]),
+        })
+        .safeParse(req.body);
+      if (!parsed.success) {
+        return fail(res, 422, "Validation failed", "VALIDATION_ERROR", parsed.error.issues);
+      }
+      const db = getDb();
+      const rows = await db
+        .select()
+        .from(homeAssistantInstances)
+        .where(eq(homeAssistantInstances.id, req.params.id))
+        .limit(1);
+      const inst = rows[0];
+      if (!inst) return fail(res, 404, "Not found", "NOT_FOUND");
+      const store = await getStoreForUser(req.user!, inst.storeId);
+      if (!req.user!.isSuperAdmin) {
+        return fail(res, 403, "Only SuperAdmin can manage automations", "FORBIDDEN");
+      }
+      try {
+        const created = await createAutomationForInstance(inst.id, parsed.data);
+        return ok(res, created, 201);
+      } catch (err: any) {
+        return fail(res, 502, err?.message || "Failed to create automation", "INTEGRATION_UNAVAILABLE");
+      }
+    }),
+  );
+
+  router.patch(
+    "/:id/automations/:configId",
+    asyncHandler(async (req, res) => {
+      const parsed = z
+        .object({
+          name: z.string().min(1),
+          time: z.string().min(1),
+          deviceEntityId: z.string().min(1),
+          action: z.enum(["on", "off"]),
+        })
+        .safeParse(req.body);
+      if (!parsed.success) {
+        return fail(res, 422, "Validation failed", "VALIDATION_ERROR", parsed.error.issues);
+      }
+      const db = getDb();
+      const rows = await db
+        .select()
+        .from(homeAssistantInstances)
+        .where(eq(homeAssistantInstances.id, req.params.id))
+        .limit(1);
+      const inst = rows[0];
+      if (!inst) return fail(res, 404, "Not found", "NOT_FOUND");
+      await getStoreForUser(req.user!, inst.storeId);
+      if (!req.user!.isSuperAdmin) {
+        return fail(res, 403, "Only SuperAdmin can manage automations", "FORBIDDEN");
+      }
+      try {
+        const updated = await updateAutomationForInstance(
+          inst.id,
+          req.params.configId,
+          parsed.data,
+        );
+        return ok(res, updated);
+      } catch (err: any) {
+        return fail(res, 502, err?.message || "Failed to update automation", "INTEGRATION_UNAVAILABLE");
+      }
+    }),
+  );
+
+  router.delete(
+    "/:id/automations/:configId",
+    asyncHandler(async (req, res) => {
+      const db = getDb();
+      const rows = await db
+        .select()
+        .from(homeAssistantInstances)
+        .where(eq(homeAssistantInstances.id, req.params.id))
+        .limit(1);
+      const inst = rows[0];
+      if (!inst) return fail(res, 404, "Not found", "NOT_FOUND");
+      await getStoreForUser(req.user!, inst.storeId);
+      if (!req.user!.isSuperAdmin) {
+        return fail(res, 403, "Only SuperAdmin can manage automations", "FORBIDDEN");
+      }
+      try {
+        await deleteAutomationForInstance(inst.id, req.params.configId);
+        return ok(res, { configId: req.params.configId });
+      } catch (err: any) {
+        return fail(res, 502, err?.message || "Failed to delete automation", "INTEGRATION_UNAVAILABLE");
       }
     }),
   );
@@ -242,10 +340,37 @@ export function createHomeAssistantRouter(): Router {
         }
       }
       try {
-        await triggerHomeAssistantAutomation(inst.id, entityId);
+        await triggerAutomationForInstance(inst.id, entityId);
         return ok(res, { entityId });
       } catch (err: any) {
-        return fail(res, 502, err?.message || "Failed to trigger automation", "HA_UNAVAILABLE");
+        return fail(res, 502, err?.message || "Failed to trigger automation", "INTEGRATION_UNAVAILABLE");
+      }
+    }),
+  );
+
+  router.post(
+    "/:id/automations/enable",
+    asyncHandler(async (req, res) => {
+      const entityId = typeof req.body?.entityId === "string" ? req.body.entityId : "";
+      const enabled = req.body?.enabled !== false;
+      if (!entityId) return fail(res, 400, "entityId required", "BAD_REQUEST");
+      const db = getDb();
+      const rows = await db
+        .select()
+        .from(homeAssistantInstances)
+        .where(eq(homeAssistantInstances.id, req.params.id))
+        .limit(1);
+      const inst = rows[0];
+      if (!inst) return fail(res, 404, "Not found", "NOT_FOUND");
+      const store = await getStoreForUser(req.user!, inst.storeId);
+      if (!req.user!.isSuperAdmin) {
+        return fail(res, 403, "Only SuperAdmin can manage automations", "FORBIDDEN");
+      }
+      try {
+        await setAutomationEnabled(inst.id, entityId, enabled);
+        return ok(res, { entityId, enabled });
+      } catch (err: any) {
+        return fail(res, 502, err?.message || "Failed to update automation", "INTEGRATION_UNAVAILABLE");
       }
     }),
   );
