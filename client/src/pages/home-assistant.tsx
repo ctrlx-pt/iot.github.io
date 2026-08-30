@@ -26,6 +26,7 @@ import { apiJson, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useTranslation } from "@/lib/i18n";
+import { normalizeHomeAssistantBaseUrl } from "@shared/ha-url";
 
 export default function HomeAssistantPage() {
   const { language } = useTranslation();
@@ -56,13 +57,15 @@ export default function HomeAssistantPage() {
   };
 
   const create = useMutation({
-    mutationFn: () =>
-      apiJson("POST", "/api/home-assistant", {
+    mutationFn: () => {
+      const normalizedUrl = normalizeHomeAssistantBaseUrl(url);
+      return apiJson("POST", "/api/home-assistant", {
         storeId: effectiveStore,
         name,
-        url,
+        url: normalizedUrl,
         apiToken,
-      }),
+      });
+    },
     onSuccess: (data: any) => {
       invalidateHierarchy();
       setOpen(false);
@@ -112,8 +115,8 @@ export default function HomeAssistantPage() {
           <h1 className="text-2xl font-semibold">{tr("Hub de integração", "Integration hub")}</h1>
           <p className="text-sm text-muted-foreground max-w-2xl">
             {tr(
-              "Adicione URL e token da loja. O CtrlX deteta automaticamente lights, switches, TVs e outros controláveis via API — sem adicionar dispositivos à mão.",
-              "Add the store URL and token. CtrlX automatically discovers lights, switches, TVs and other controllable entities via the API — no manual device entry.",
+              "Adicione o URL de origem da Home Assistant (ex.: https://ha.exemplo.com) e o token. Não use a página do dashboard (ex.: /dashboard/console). O CtrlX deteta lights, switches, TVs e outros controláveis via API.",
+              "Add the Home Assistant origin URL (e.g. https://ha.example.com) and token — not a dashboard page such as /dashboard/console. CtrlX discovers lights, switches, TVs and other controllable entities via the API.",
             )}
           </p>
         </div>
@@ -151,7 +154,17 @@ export default function HomeAssistantPage() {
               </div>
               <div className="space-y-2">
                 <Label>URL</Label>
-                <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://ha.example.com" />
+                <Input
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://ha.example.com"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {tr(
+                    "URL de origem da API, não o endereço do dashboard no browser.",
+                    "API origin URL, not the dashboard address from the browser.",
+                  )}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>API Token</Label>

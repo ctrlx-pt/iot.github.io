@@ -9,6 +9,7 @@ import { writeAuditLog } from "../../services/audit";
 import { encryptSecret } from "../../services/crypto/secrets";
 import { discoverDevicesFromHomeAssistant } from "../../services/home-assistant/discover";
 import { getDeviceScoped, getStoreForUser } from "../../services/tenant-scope";
+import { normalizeHomeAssistantBaseUrl } from "../../../shared/ha-url";
 
 function sanitizeHa(row: typeof homeAssistantInstances.$inferSelect) {
   const { apiTokenEncrypted: _, ...rest } = row;
@@ -79,12 +80,18 @@ export function createHomeAssistantRouter(): Router {
         .object({
           storeId: z.string().uuid(),
           name: z.string().min(1),
-          url: z.string().url(),
+          url: z.string().min(1),
           apiToken: z.string().min(1),
         })
         .safeParse(req.body);
       if (!parsed.success) {
         return fail(res, 422, "Validation failed", "VALIDATION_ERROR", parsed.error.issues);
+      }
+      let url: string;
+      try {
+        url = normalizeHomeAssistantBaseUrl(parsed.data.url);
+      } catch (err: any) {
+        return fail(res, 422, err?.message || "Invalid Home Assistant URL", "VALIDATION_ERROR");
       }
       const store = await getStoreForUser(req.user!, parsed.data.storeId);
       if (!req.user!.isSuperAdmin) {
@@ -96,7 +103,7 @@ export function createHomeAssistantRouter(): Router {
         .values({
           storeId: store.id,
           name: parsed.data.name,
-          url: parsed.data.url.replace(/\/+$/, ""),
+          url,
           apiTokenEncrypted: encryptSecret(parsed.data.apiToken),
           status: "UNKNOWN",
         })
@@ -133,6 +140,55 @@ export function createHomeAssistantRouter(): Router {
       }
 
       return ok(res, { ...sanitizeHa(row), discovery }, 201);
+    }),
+  );
+
+  router.patch(
+    "/:id",
+    asyncHandler(async (req, res) => {
+      const db = getDb();
+      const rows = await db
+        .select()
+        .from(homeAssistantInstances)
+        .where(eq(homeAssistantInstances.id, req.params.id))
+        .limit(1);
+      const inst = rows[0];
+      if (!inst) return fail(res, 404, "Not found", "NOT_FOUND");
+      const store = await getStoreForUser(req.user!, inst.storeId);
+      if (!req.user!.isSuperAdmin) {
+        return fail(res, 403, "Only SuperAdmin can update Home Assistant", "FORBIDDEN");
+      }
+      const parsed = z
+        .object({
+          name: z.string().min(1).optional(),
+          url: z.string().min(1).optional(),
+          apiToken: z.string().min(1).optional(),
+        })
+        .safeParse(req.body);
+      if (!parsed.success) {
+        return fail(res, 422, "Validation failed", "VALIDATION_ERROR", parsed.error.issues);
+      }
+      let url = inst.url;
+      if (parsed.data.url) {
+        try {
+          url = normalizeHomeAssistantBaseUrl(parsed.data.url);
+        } catch (err: any) {
+          return fail(res, 422, err?.message || "Invalid Home Assistant URL", "VALIDATION_ERROR");
+        }
+      }
+      const [row] = await db
+        .update(homeAssistantInstances)
+        .set({
+          name: parsed.data.name ?? inst.name,
+          url,
+          apiTokenEncrypted: parsed.data.apiToken
+            ? encryptSecret(parsed.data.apiToken)
+            : undefined,
+          updatedAt: new Date(),
+        })
+        .where(eq(homeAssistantInstances.id, inst.id))
+        .returning();
+      return ok(res, sanitizeHa(row));
     }),
   );
 

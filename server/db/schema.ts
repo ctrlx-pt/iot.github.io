@@ -302,6 +302,27 @@ export const devices = pgTable(
   }),
 );
 
+export const HEARTBEAT_LEVELS = ["ok", "degraded", "offline"] as const;
+export type HeartbeatLevel = (typeof HEARTBEAT_LEVELS)[number];
+
+export const deviceHeartbeatBuckets = pgTable(
+  "device_heartbeat_buckets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    deviceId: uuid("device_id")
+      .notNull()
+      .references(() => devices.id, { onDelete: "cascade" }),
+    hourStart: timestamp("hour_start", { withTimezone: true }).notNull(),
+    level: text("level").notNull(),
+    sampleCount: integer("sample_count").notNull().default(1),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    deviceHourIdx: uniqueIndex("device_heartbeat_device_hour_uidx").on(t.deviceId, t.hourStart),
+    deviceIdIdx: index("device_heartbeat_device_id_idx").on(t.deviceId),
+  }),
+);
+
 export const TICKET_STATUSES = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"] as const;
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
 

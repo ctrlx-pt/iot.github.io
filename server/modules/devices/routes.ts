@@ -8,6 +8,7 @@ import { asyncHandler, fail, ok } from "../../middleware/errors";
 import { writeAuditLog } from "../../services/audit";
 import { getDeviceControlService } from "../../services/device-control";
 import {
+  getDeviceHeartbeatHistory,
   recordManualHeartbeat,
   refreshDeviceHeartbeat,
 } from "../../services/devices/heartbeat";
@@ -18,7 +19,7 @@ import { createDeviceTicketsRouter } from "../device-tickets/routes";
 const patchDeviceSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
-  imageUrl: z.string().nullable().optional(),
+  imageUrl: z.string().max(4_000_000).nullable().optional(),
   address: z.string().nullable().optional(),
   city: z.string().nullable().optional(),
   country: z.string().nullable().optional(),
@@ -85,6 +86,16 @@ export function createDevicesRouter(): Router {
         /* ignore heartbeat errors */
       }
       return ok(res, state);
+    }),
+  );
+
+  router.get(
+    "/:id/heartbeat/history",
+    asyncHandler(async (req, res) => {
+      await getDeviceScoped(req.user!, req.params.id);
+      const days = Math.min(Math.max(Number(req.query.days ?? 14), 1), 90);
+      const buckets = await getDeviceHeartbeatHistory(req.params.id, days);
+      return ok(res, { days, buckets });
     }),
   );
 

@@ -7,6 +7,10 @@ import {
 } from "../../db/schema";
 import { decryptSecret } from "../crypto/secrets";
 import { HomeAssistantRestService } from "../home-assistant/ha-rest";
+import {
+  inferHeartbeatLevel,
+  recordHeartbeatBucket,
+} from "./heartbeat-history";
 
 export type HeartbeatResult = {
   deviceId: string;
@@ -71,14 +75,21 @@ export async function refreshDeviceHeartbeat(deviceId: string): Promise<Heartbea
             .where(eq(homeAssistantEntities.id, mapping[0].id));
         }
 
-        return {
+        const latencyMs = Date.now() - started;
+        const result: HeartbeatResult = {
           deviceId,
           status,
           lastSeenAt: now.toISOString(),
           source: "integration",
-          latencyMs: Date.now() - started,
+          latencyMs,
         };
+        await recordHeartbeatBucket(
+          deviceId,
+          inferHeartbeatLevel(status, "integration", latencyMs),
+        );
+        return result;
       } catch {
+        await recordHeartbeatBucket(deviceId, "degraded");
         // fall through to mock
       }
     }
@@ -101,12 +112,14 @@ export async function refreshDeviceHeartbeat(deviceId: string): Promise<Heartbea
     })
     .where(eq(devices.id, deviceId));
 
-  return {
+  const result: HeartbeatResult = {
     deviceId,
     status,
     lastSeenAt: (isRecent ? device.lastSeenAt : now)?.toISOString?.() ?? now.toISOString(),
     source: "mock",
   };
+  await recordHeartbeatBucket(deviceId, inferHeartbeatLevel(status, "mock"));
+  return result;
 }
 
 export async function recordManualHeartbeat(deviceId: string, status = "ONLINE"): Promise<HeartbeatResult> {
@@ -122,10 +135,15 @@ export async function recordManualHeartbeat(deviceId: string, status = "ONLINE")
     })
     .where(eq(devices.id, deviceId));
 
-  return {
+  const result: HeartbeatResult = {
     deviceId,
     status,
     lastSeenAt: now.toISOString(),
     source: "manual",
   };
+  await recordHeartbeatBucket(deviceId, inferHeartbeatLevel(status, "manual"));
+  return result;
 }
+
+export { getDeviceHeartbeatHistory } from "./heartbeat-history";
+export type { HeartbeatHistoryBucket } from "./heartbeat-history";

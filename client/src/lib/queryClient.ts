@@ -19,7 +19,18 @@ async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
     redirectToLoginIfUnauthorized(res, text);
-    throw new Error(`${res.status}: ${text}`);
+    let message = text;
+    try {
+      const json = JSON.parse(text);
+      message =
+        json.errors?.[0]?.message ||
+        json.message ||
+        (typeof json.error === "string" ? json.error : null) ||
+        text;
+    } catch {
+      /* keep raw text */
+    }
+    throw new Error(message);
   }
 }
 

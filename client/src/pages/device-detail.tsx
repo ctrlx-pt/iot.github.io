@@ -15,13 +15,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { compressImageToDataUrl, MAX_SOURCE_IMAGE_BYTES } from "@/lib/compress-image";
+import { DeviceHeartbeatCalendar } from "@/components/device-heartbeat-calendar";
 import { apiJson, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useTr } from "@/lib/tr";
 import { getDeviceVisual } from "@/lib/device-visuals";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
-import { HeartPulse, MapPin, TicketPlus } from "lucide-react";
+import { MapPin, TicketPlus } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
 type Ticket = {
@@ -50,6 +52,7 @@ export default function DeviceDetailPage() {
   });
   const [ticketTitle, setTicketTitle] = useState("");
   const [ticketDesc, setTicketDesc] = useState("");
+  const [compressing, setCompressing] = useState(false);
 
   const { data: device } = useQuery<any>({
     queryKey: ["/api/devices", deviceId],
@@ -63,7 +66,7 @@ export default function DeviceDetailPage() {
     refetchInterval: 15_000,
   });
 
-  const { data: heartbeat, refetch: refetchHeartbeat } = useQuery<any>({
+  const { data: heartbeat, refetch: refetchHeartbeat, isFetching: heartbeatFetching } = useQuery<any>({
     queryKey: ["/api/devices", deviceId, "heartbeat"],
     queryFn: () => apiJson("GET", `/api/devices/${deviceId}/heartbeat`),
     enabled: !!deviceId,
@@ -130,21 +133,41 @@ export default function DeviceDetailPage() {
     },
   });
 
-  const onImageFile = (file: File | null) => {
+  const onImageFile = async (file: File | null) => {
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
+    if (file.size > MAX_SOURCE_IMAGE_BYTES) {
       toast({
-        title: tr({ en: "Image too large (max 2MB)", pt: "Imagem demasiado grande (máx. 2MB)" }),
+        title: tr({
+          en: "Image too large (max 10MB)",
+          pt: "Imagem demasiado grande (máx. 10MB)",
+          es: "Imagen demasiado grande (máx. 10MB)",
+          fr: "Image trop volumineuse (max. 10 Mo)",
+        }),
         variant: "destructive",
       });
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setForm((f) => ({ ...f, imageUrl: String(reader.result) }));
+    setCompressing(true);
+    try {
+      const imageUrl = await compressImageToDataUrl(file);
+      setForm((f) => ({ ...f, imageUrl }));
       setEditOpen(true);
-    };
-    reader.readAsDataURL(file);
+    } catch (e) {
+      toast({
+        title:
+          e instanceof Error
+            ? e.message
+            : tr({
+                en: "Could not process image",
+                pt: "Não foi possível processar a imagem",
+                es: "No se pudo procesar la imagen",
+                fr: "Impossible de traiter l'image",
+              }),
+        variant: "destructive",
+      });
+    } finally {
+      setCompressing(false);
+    }
   };
 
   if (!device) {
@@ -162,79 +185,60 @@ export default function DeviceDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        <div className="flex items-start gap-4 min-w-0 flex-1">
-          {device.imageUrl ? (
-            <img
-              src={device.imageUrl}
-              alt={device.name}
-              className="h-28 w-28 shrink-0 rounded-xl object-cover ring-1 ring-border"
-            />
-          ) : (
-            <div
-              className={cn(
-                "flex h-28 w-28 shrink-0 items-center justify-center rounded-xl ring-1",
-                visual.wellClass,
-              )}
-            >
-              <Icon className={cn("h-10 w-10", visual.iconClass)} />
-            </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <Breadcrumbs
-              items={[
-                { label: tr({ en: "Devices", pt: "Dispositivos", es: "Dispositivos", fr: "Appareils" }) },
-                { label: device.name },
-              ]}
-            />
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl font-semibold">{device.name}</h1>
-              <StatusBadge status={state?.status || device.status} />
-            </div>
-            <p className="font-mono text-sm text-muted-foreground">{device.deviceCode}</p>
-            <p className="text-sm text-muted-foreground mt-1">{visual.label}</p>
-            {device.description ? (
-              <p className="mt-2 text-sm text-foreground/90">{device.description}</p>
-            ) : null}
-            {(device.address || device.city || device.country) && (
-              <p className="mt-2 flex items-start gap-1 text-sm text-muted-foreground">
-                <MapPin className="h-4 w-4 mt-0.5 shrink-0" />
-                {[device.address, device.city, device.country].filter(Boolean).join(", ")}
-              </p>
+      <div className="flex items-start gap-4 min-w-0">
+        {device.imageUrl ? (
+          <img
+            src={device.imageUrl}
+            alt={device.name}
+            className="h-28 w-28 shrink-0 rounded-xl object-cover ring-1 ring-border"
+          />
+        ) : (
+          <div
+            className={cn(
+              "flex h-28 w-28 shrink-0 items-center justify-center rounded-xl ring-1",
+              visual.wellClass,
             )}
+          >
+            <Icon className={cn("h-10 w-10", visual.iconClass)} />
           </div>
-        </div>
-
-        <div className="rounded-lg border p-4 text-sm space-y-2 min-w-[220px]">
-          <div className="flex items-center gap-2 font-medium">
-            <HeartPulse className="h-4 w-4 text-emerald-600" />
-            {tr({ en: "Heartbeat", pt: "Heartbeat", es: "Latido", fr: "Heartbeat" })}
+        )}
+        <div className="min-w-0 flex-1">
+          <Breadcrumbs
+            items={[
+              { label: tr({ en: "Devices", pt: "Dispositivos", es: "Dispositivos", fr: "Appareils" }) },
+              { label: device.name },
+            ]}
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold">{device.name}</h1>
+            <StatusBadge status={state?.status || device.status} />
           </div>
-          <div className="text-muted-foreground">
-            {tr({
-              en: "Source",
-              pt: "Origem",
-              es: "Origen",
-              fr: "Source",
-            })}
-            :{" "}
-            <span className="font-medium text-foreground">
-              {heartbeatSource === "integration"
-                ? tr({ en: "Integration hub", pt: "Hub de integração", es: "Hub de integración", fr: "Hub d'intégration" })
-                : tr({ en: "Simulated", pt: "Simulado", es: "Simulado", fr: "Simulé" })}
-            </span>
-          </div>
-          {lastSeen ? (
-            <div className="text-muted-foreground">
-              {tr({ en: "Last seen", pt: "Última vez", es: "Última vez", fr: "Dernière vue" })}:{" "}
-              {new Date(lastSeen).toLocaleString()}
-            </div>
+          <p className="font-mono text-sm text-muted-foreground">{device.deviceCode}</p>
+          <p className="text-sm text-muted-foreground mt-1">{visual.label}</p>
+          {device.description ? (
+            <p className="mt-2 text-sm text-foreground/90">{device.description}</p>
           ) : null}
-          <Button size="sm" variant="outline" onClick={() => refetchHeartbeat()}>
-            {tr({ en: "Refresh", pt: "Atualizar", es: "Actualizar", fr: "Actualiser" })}
-          </Button>
+          {(device.address || device.city || device.country) && (
+            <p className="mt-2 flex items-start gap-1 text-sm text-muted-foreground">
+              <MapPin className="h-4 w-4 mt-0.5 shrink-0" />
+              {[device.address, device.city, device.country].filter(Boolean).join(", ")}
+            </p>
+          )}
         </div>
       </div>
+
+      <DeviceHeartbeatCalendar
+        deviceId={deviceId}
+        source={heartbeatSource}
+        lastSeen={lastSeen}
+        onRefresh={() => {
+          refetchHeartbeat();
+          queryClient.invalidateQueries({
+            queryKey: ["/api/devices", deviceId, "heartbeat", "history"],
+          });
+        }}
+        refreshing={heartbeatFetching}
+      />
 
       {canEditDevice ? (
         <div className="rounded-lg border p-4 space-y-4">
@@ -263,8 +267,31 @@ export default function DeviceDetailPage() {
                 <Input
                   type="file"
                   accept="image/*"
+                  disabled={compressing}
                   onChange={(e) => onImageFile(e.target.files?.[0] ?? null)}
                 />
+                <p className="text-xs text-muted-foreground">
+                  {compressing
+                    ? tr({
+                        en: "Compressing photo…",
+                        pt: "A comprimir a foto…",
+                        es: "Comprimiendo la foto…",
+                        fr: "Compression de la photo…",
+                      })
+                    : tr({
+                        en: "Photos are resized automatically before upload.",
+                        pt: "As fotos são redimensionadas automaticamente antes de enviar.",
+                        es: "Las fotos se redimensionan automáticamente antes de enviar.",
+                        fr: "Les photos sont redimensionnées automatiquement avant l'envoi.",
+                      })}
+                </p>
+                {form.imageUrl ? (
+                  <img
+                    src={form.imageUrl}
+                    alt=""
+                    className="h-20 w-20 rounded-md object-cover ring-1 ring-border"
+                  />
+                ) : null}
                 <Input
                   placeholder="https://…"
                   value={form.imageUrl.startsWith("data:") ? "" : form.imageUrl}
@@ -295,7 +322,7 @@ export default function DeviceDetailPage() {
                 />
               </div>
               <div className="md:col-span-2">
-                <Button onClick={() => saveMeta.mutate()} disabled={saveMeta.isPending}>
+                <Button onClick={() => saveMeta.mutate()} disabled={saveMeta.isPending || compressing}>
                   {tr({ en: "Save", pt: "Guardar", es: "Guardar", fr: "Enregistrer" })}
                 </Button>
               </div>

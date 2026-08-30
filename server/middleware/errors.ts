@@ -42,6 +42,22 @@ export function correlationIdMiddleware(req: Request, res: Response, next: NextF
 
 export function errorHandler(err: any, req: Request, res: Response, _next: NextFunction) {
   const correlationId = (req as any).correlationId;
+  const tooLarge =
+    err?.type === "entity.too.large" || err?.status === 413 || err?.statusCode === 413;
+  if (tooLarge) {
+    return res.status(413).json({
+      success: false,
+      data: null,
+      errors: [
+        {
+          code: "PAYLOAD_TOO_LARGE",
+          message: "Request is too large. Use a smaller photo.",
+        },
+      ],
+      correlationId,
+    });
+  }
+
   const status = err.status || err.statusCode || 500;
   const isProd = process.env.NODE_ENV === "production";
 

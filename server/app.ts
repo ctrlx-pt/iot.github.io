@@ -50,14 +50,18 @@ export async function createApp(opts?: { broadcastDeviceUpdate?: BroadcastDevice
 
   app.use(correlationIdMiddleware);
   app.use(cookieParser());
+  // Device photos are sent as data URLs. Default Express limit is 100kb, which
+  // 413s screenshots. Cap at 5mb so we stay under Netlify Functions' 6mb payload.
+  const jsonBodyLimit = "5mb";
   app.use(
     express.json({
+      limit: jsonBodyLimit,
       verify: (req, _res, buf) => {
         req.rawBody = buf;
       },
     }),
   );
-  app.use(express.urlencoded({ extended: false }));
+  app.use(express.urlencoded({ extended: false, limit: jsonBodyLimit }));
 
   // Security headers
   app.use((_req, res, next) => {

@@ -1,3 +1,5 @@
+import { normalizeHomeAssistantBaseUrl } from "../../../shared/ha-url";
+
 export type HaState = {
   entity_id: string;
   state: string;
@@ -23,31 +25,63 @@ export interface IHomeAssistantService {
 }
 
 export class HomeAssistantRestService implements IHomeAssistantService {
+  private readonly baseUrl: string;
+
   constructor(
-    private readonly baseUrl: string,
+    baseUrl: string,
     private readonly token: string,
-  ) {}
+  ) {
+    this.baseUrl = normalizeHomeAssistantBaseUrl(baseUrl);
+  }
 
   private url(path: string) {
     return `${this.baseUrl.replace(/\/+$/, "")}${path}`;
   }
 
+  private parseJson(method: string, path: string, requestUrl: string, contentType: string | null, text: string) {
+    const looksHtml =
+      /^\s*</.test(text) || (contentType || "").toLowerCase().includes("text/html");
+    if (looksHtml) {
+      throw new Error(
+        `Home Assistant returned a web page instead of the API (${method} ${path}). Use the Home Assistant origin (e.g. https://ha.example.com), not a dashboard URL such as /dashboard/console. Requested: ${requestUrl}`,
+      );
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(
+        `Home Assistant returned invalid JSON (${method} ${path}). Requested: ${requestUrl}`,
+      );
+    }
+  }
+
   private async request(method: string, path: string, body?: unknown) {
-    const res = await fetch(this.url(path), {
+    const requestUrl = this.url(path);
+    const res = await fetch(requestUrl, {
       method,
       headers: {
         Authorization: `Bearer ${this.token}`,
         "Content-Type": "application/json",
       },
       body: body != null ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(12_000),
     });
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(`Home Assistant ${method} ${path} failed: ${res.status} ${text}`);
+      const looksHtml =
+        /^\s*</.test(text) || (res.headers.get("content-type") || "").toLowerCase().includes("text/html");
+      if (looksHtml) {
+        throw new Error(
+          `Home Assistant returned HTTP ${res.status} HTML instead of JSON (${method} ${path}). Use the Home Assistant origin, not a dashboard page. Requested: ${requestUrl}`,
+        );
+      }
+      throw new Error(`Home Assistant ${method} ${path} failed: ${res.status} ${text.slice(0, 300)}`);
     }
     if (res.status === 204) return null;
     const text = await res.text();
-    return text ? JSON.parse(text) : null;
+    return text
+      ? this.parseJson(method, path, requestUrl, res.headers.get("content-type"), text)
+      : null;
   }
 
   async getStates(): Promise<HaState[]> {

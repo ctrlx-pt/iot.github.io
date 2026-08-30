@@ -13,6 +13,7 @@ import { decryptSecret } from "../crypto/secrets";
 import { identifierGenerator } from "../identifier-generator";
 import { defaultCapabilitiesForType } from "../tenant-scope";
 import { HomeAssistantRestService, type HaState } from "./ha-rest";
+import { normalizeHomeAssistantBaseUrl } from "../../../shared/ha-url";
 
 const INTEGRATION_FURNITURE_NAMES = ["Integração de dispositivos", "Home Assistant"];
 const INTEGRATION_KIT_NAME = "Dispositivos sincronizados";
@@ -175,12 +176,18 @@ export async function discoverDevicesFromHomeAssistant(
   if (!store) throw new Error("Store not found");
 
   const token = decryptSecret(inst.apiTokenEncrypted);
-  const client = new HomeAssistantRestService(inst.url, token);
+  const baseUrl = normalizeHomeAssistantBaseUrl(inst.url);
+  const client = new HomeAssistantRestService(baseUrl, token);
   const states = await client.getStates();
 
   await db
     .update(homeAssistantInstances)
-    .set({ status: "ONLINE", lastSeenAt: new Date(), updatedAt: new Date() })
+    .set({
+      url: baseUrl,
+      status: "ONLINE",
+      lastSeenAt: new Date(),
+      updatedAt: new Date(),
+    })
     .where(eq(homeAssistantInstances.id, inst.id));
 
   const { furniture: furn, kit } = await ensureDiscoveryKit(store.id, store.storeCode);
