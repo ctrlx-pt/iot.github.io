@@ -2,7 +2,7 @@ import { schedule } from "@netlify/functions";
 import { runAutomationSchedulerTick } from "../../server/services/automations/runner";
 
 /** Netlify scheduled function — replaces setInterval scheduler on serverless. */
-export const handler = schedule("* * * * *", async () => {
+export const handler = schedule("0 0 1 * *", async () => {
   const result = await runAutomationSchedulerTick();
   console.log("[automations-cron]", JSON.stringify(result));
   return result;
